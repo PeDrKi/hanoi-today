@@ -1,0 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Be+Vietnam+Pro:wght@300;400;500;600&display=swap');
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--r-sm:8px;--r-md:12px;--r-lg:16px;--r-pill:999px}
+html,body,#root{height:100%}
+body{font-family:'Be Vietnam Pro',sans-serif;background:#F4EFE6;color:#1A1916;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spinSlow{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes blink{0%,100%{opacity:.2}50%{opacity:1}}
+@keyframes shimmer{0%{background-position:-600px 0}100%{background-position:600px 0}}
+
+.skeleton{
+  background:linear-gradient(90deg,rgba(26,25,22,.06) 25%,rgba(26,25,22,.12) 37%,rgba(26,25,22,.06) 63%);
+  background-size:600px 100%;
+  animation:shimmer 1.4s ease infinite;
+  border-radius:8px;
+}
+
+input[type='range']{width:100%;cursor:pointer;accent-color:#B85C2A}
+
+.leaflet-container{font-family:'Be Vietnam Pro',sans-serif!important;z-index:1}
+.leaflet-popup-content-wrapper{border-radius:14px!important;border:1px solid rgba(26,25,22,.13)!important;box-shadow:0 4px 20px rgba(0,0,0,.1)!important}
+.leaflet-popup-content{font-family:'Be Vietnam Pro',sans-serif!important;font-size:13px!important;margin:10px 12px!important}
+.custom-pin{width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center}
+.custom-pin span{transform:rotate(45deg);color:white;font-weight:700;font-size:12px;line-height:1}
+
+.lang-toggle{display:flex;border:1px solid rgba(26,25,22,.13);border-radius:999px;overflow:hidden;flex-shrink:0}
+.lang-toggle button{background:none;border:none;padding:.3rem .65rem;font-size:.72rem;font-family:'Be Vietnam Pro',sans-serif;cursor:pointer;letter-spacing:.06em;font-weight:500;transition:all .18s}
+.lang-toggle button.active{background:rgba(26,25,22,.1)}
+
+@media(max-width:640px){
+  .admin-grid-4{grid-template-columns:1fr 1fr!important}
+  .admin-grid-2{grid-template-columns:1fr!important}
+  .map-topbar{flex-wrap:wrap;gap:8px!important}
+  .search-wrap{order:3;width:100%;max-width:100%!important}
+  .season-badge{display:none}
+  .type-filter{overflow-x:auto;-webkit-overflow-scrolling:touch;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+  .result-header{flex-direction:column!important;align-items:flex-start!important}
+  .result-btns{align-self:flex-end;margin-top:8px}
+  .tab-bar{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:5;background:#F4EFE6;margin-left:-1.75rem!important;margin-right:-1.75rem!important;padding:0 1rem}
+  .tab-bar::-webkit-scrollbar{display:none}
+  .tab-bar button{padding:.7rem .8rem!important;font-size:.78rem!important;flex-shrink:0}
+  .tab-spacer{display:none}
+  .tab-regen{flex-shrink:0;padding:.7rem .5rem!important;white-space:nowrap}
+  .act-bar{flex-wrap:nowrap!important;position:sticky;bottom:0;z-index:6;background:rgba(244,239,230,.96);backdrop-filter:blur(6px);padding:.6rem 0!important;margin:0 -1.75rem;padding-left:1.75rem!important;padding-right:1.75rem!important;border-top:1px solid rgba(26,25,22,.12);order:99}
+  .act-bar>a,.act-bar>button{flex:1 1 auto;text-align:center;padding:.65rem .9rem!important;font-size:.82rem!important}
+  .star-row{flex-direction:column;align-items:flex-start!important}
+  .star-row>span{flex:0 0 auto!important;min-width:0!important}
+  .review-actions{flex-direction:column;align-items:stretch!important}
+  .map-home{position:static!important;margin:.4rem 1rem 0 auto}
+  .welcome-title{font-size:clamp(2.2rem,12vw,4.8rem)!important}
+  .onboard-wrap{padding:1.25rem!important}
+}
+
+/* keyboard focus must be visible everywhere */
+:focus-visible{outline:2px solid #B85C2A;outline-offset:2px}
+button:focus:not(:focus-visible),[role=radio]:focus:not(:focus-visible){outline:none}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+
+/* Admin: sidebar becomes a top bar on narrow screens */
+@media(max-width:768px){
+  .admin-wrap{flex-direction:column!important}
+  .admin-side{position:static!important;width:100%!important;height:auto!important;flex-direction:column!important}
+  .admin-brand{padding:.8rem 1rem!important}
+  .admin-nav{display:flex!important;overflow-x:auto;padding:0!important;flex:none!important}
+  .admin-nav button{width:auto!important;white-space:nowrap;padding:.7rem 1rem!important}
+  .admin-foot{flex-direction:row!important;padding:.6rem 1rem!important}
+  .admin-main{margin-left:0!important}
+  .admin-body{padding:1rem!important}
+}
+
+
+/* ───────── Rounded UI + interaction polish (v29) ─────────
+   Inline styles that set their own borderRadius still win; everything else inherits these. */
+button,select,input:not([type=range]):not([type=checkbox]):not([type=radio]),textarea,.btn-a{border-radius:var(--r-md)}
+a.btn-a{display:inline-block;transition:transform .15s,box-shadow .15s,background .2s}
+button:not(:disabled),.btn-a{transition:transform .15s ease,box-shadow .15s ease,background-color .2s,color .2s,border-color .2s,opacity .2s}
+button:not(:disabled):hover,.btn-a:hover{box-shadow:0 3px 10px rgba(26,25,22,.12)}
+button:not(:disabled):active,.btn-a:active{transform:scale(.97);box-shadow:none}
+button:disabled{cursor:not-allowed}
+/* panels, cards and notices drawn with an inline 1px border */
+div[style*="border: 1px solid"],section[style*="border: 1px solid"],label[style*="border: 1px solid"],article[style*="border: 1px solid"],table{border-radius:var(--r-md)}
+table{overflow:hidden;border-collapse:separate;border-spacing:0}
+[role=dialog]{border-radius:var(--r-lg)!important}
+input[type=range]{height:6px;border-radius:var(--r-pill)}
+:focus-visible{border-radius:var(--r-sm)}
+/* segmented controls inside rounded wrappers keep a clean edge */
+.lang-toggle button{border-radius:0}
+.tab-bar button{border-radius:var(--r-md) var(--r-md) 0 0}
+.admin-nav button{border-radius:var(--r-md)}
+.admin-nav{padding-left:.5rem!important;padding-right:.5rem!important}
+/* bigger touch targets on phones */
+@media (pointer:coarse){
+  button:not(.lang-toggle button):not([aria-label^="↑"]):not([aria-label^="↓"]),a.btn-a{min-height:40px}
+  input:not([type=range]):not([type=checkbox]):not([type=radio]),select{min-height:44px;font-size:16px}
+}
+span[style*="padding"]{border-radius:var(--r-pill)}
+.welcome-links{display:flex;flex-wrap:wrap;gap:.6rem;justify-content:center;margin-top:1.1rem;position:relative;z-index:1}
+.chip-btn{background:rgba(255,255,255,.6)!important;border:1px solid rgba(26,25,22,.13)!important;border-radius:var(--r-pill)!important;padding:.5rem 1.1rem!important;font-size:.8rem!important;text-decoration:none!important;cursor:pointer;font-family:'Be Vietnam Pro',sans-serif}
+.chip-btn:hover{background:#fff!important;border-color:#B85C2A!important}
+
+/* ───────── Borderless buttons (v30): outline buttons become soft filled ones ───────── */
+button,a.btn-a,.chip-btn,.lang-toggle{border-color:transparent!important}
+button[style*="border: 1px solid"],a.btn-a[style*="border: 1px solid"]{border:none!important}
+button[style*="background: none"],button[style*="background: transparent"]{background:rgba(26,25,22,.07)!important}
+button[style*="border: none"][style*="background: none"],.tab-bar button,.admin-nav button,.lang-toggle button{background:transparent!important}
+.admin-nav button[aria-current=page]{background:rgba(255,255,255,.1)!important}
+.tab-bar button{background:transparent!important}
+a.btn-a:not([style*="background: rgb"]){background:rgba(184,92,42,.09)}
+span[style*="border: 1px solid"]{border-color:transparent!important;background-color:rgba(26,25,22,.06)}
+.chip-btn{background:rgba(255,255,255,.75)!important;box-shadow:0 1px 3px rgba(26,25,22,.08)}
+.lang-toggle{box-shadow:0 1px 3px rgba(26,25,22,.08);background:rgba(255,255,255,.55)}
+button:not(:disabled):hover{background-image:linear-gradient(rgba(26,25,22,.05),rgba(26,25,22,.05))}
+/* selectable cards + weather pill: no outline, state shown by fill */
+[role=radio],[role=checkbox][style*="border: 1px solid"]{border-color:transparent!important;box-shadow:0 1px 4px rgba(26,25,22,.08)}
+[role=radio][aria-checked=true]{background:rgba(184,92,42,.16)!important;box-shadow:0 2px 10px rgba(184,92,42,.18)}
+div[style*="position: fixed"][style*="border: 1px solid"]{border-color:transparent!important;box-shadow:0 2px 10px rgba(26,25,22,.1)}
+
+/* ───────── Background art (v31) ─────────
+   Own illustration (public/bg/*.svg). Welcome screen: full scene. Other screens: a faint skyline strip at the bottom.
+   To use your own photo: put it in public/bg/ and change the two url(...) below. */
+body::before{content:'';position:fixed;left:0;right:0;bottom:0;height:42vh;z-index:-1;pointer-events:none;
+  background:url(/bg/hanoi-strip.svg) center bottom/cover no-repeat;opacity:.38;transition:opacity .4s}
+body.bg-hero::before{top:0;height:auto;background-image:url(/bg/hanoi-hero.svg);opacity:1}
+body.bg-soft::before{opacity:.4}
+body.bg-faint::before{opacity:.13}
+body.bg-none::before{display:none}
+.welcome-veil::before{content:'';position:absolute;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 46% 52% at 50% 52%,rgba(244,239,230,.88) 0%,rgba(244,239,230,.7) 55%,rgba(244,239,230,0) 100%)}
+@media(max-width:640px){body::before{height:30vh}body.bg-hero::before{height:auto;opacity:1}.welcome-veil::before{background:radial-gradient(ellipse 90% 56% at 50% 54%,rgba(244,239,230,.88) 0%,rgba(244,239,230,.7) 60%,rgba(244,239,230,0) 100%)}}
+
+
+/* ───────── Motion (v32) — all of it is switched off by the prefers-reduced-motion rule above ───────── */
+@keyframes rise{from{opacity:0;transform:translateY(16px)}}
+@keyframes pop{0%{transform:scale(.9)}55%{transform:scale(1.07)}100%{transform:scale(1)}}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(184,92,42,0)}50%{box-shadow:0 0 0 8px rgba(184,92,42,.16)}}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes slideIn{from{opacity:0;transform:translateX(-10px)}}
+/* screen change */
+.page-in{animation:rise .38s ease both}
+/* welcome: staggered entrance */
+.welcome-veil>*:not([aria-hidden]){animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
+.welcome-veil>*:nth-child(3){animation-delay:.05s}.welcome-veil>*:nth-child(4){animation-delay:.12s}
+.welcome-veil>*:nth-child(5){animation-delay:.2s}.welcome-veil>*:nth-child(6){animation-delay:.3s}
+.welcome-veil>*:nth-child(7){animation-delay:.4s}.welcome-veil>*:nth-child(8){animation-delay:.5s}
+.welcome-veil>*:nth-child(9){animation-delay:.6s}.welcome-veil>*:nth-child(10){animation-delay:.7s}
+.welcome-veil>button:first-of-type{animation:rise .7s .4s cubic-bezier(.2,.7,.2,1) both,glow 3s 1.4s ease-in-out infinite}
+.welcome-veil>div[style*="border-radius: 50%"]{animation:rise .7s both,floaty 6s 1s ease-in-out infinite}
+/* result: stops arrive one after another, lift on hover */
+.stop-card{transition:transform .2s ease,box-shadow .2s ease}
+.stop-card:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(26,25,22,.12)}
+.tab-bar,.result-header{animation:slideIn .4s ease both}
+/* toggles and choices pop when they switch on */
+button[aria-pressed=true],[role=radio][aria-checked=true]{animation:pop .32s ease}
+.chip-btn:hover,.act-bar>*:hover{transform:translateY(-2px)}
+/* admin: counters and bars */
+.admin-body>*{animation:rise .4s ease both}
+@keyframes grow{from{transform:scaleX(0)}}
+div[style*="transform-origin"]{animation:grow .8s ease both}
+
+@media (prefers-reduced-motion:reduce){
+  body::before{background-image:url(/bg/hanoi-strip-static.svg)}
+  body.bg-hero::before{background-image:url(/bg/hanoi-hero-static.svg)}
+}
+
+/* Desktop: stop cards become image-left / text-right so the photo is no longer a full-width strip */
+@media (min-width:900px){
+  .stop-body{display:grid;grid-template-columns:240px minmax(0,1fr);column-gap:20px;align-content:start}
+  .stop-body>*{grid-column:2}
+  .stop-body>.stop-media{grid-column:1;grid-row:1 / span 30;margin-bottom:0!important}
+  .stop-body>.stop-media>div{height:100%!important;min-height:180px}
+}
