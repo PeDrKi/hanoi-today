@@ -10,8 +10,15 @@ compatibility_date = "2024-09-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "hanoi-today"
-database_id = "PASTE_D1_DATABASE_ID_HERE"
+database_id = "01775576-5268-4019-81e9-a3c13e76f3f4"
 
 # Only your site may call the API from a browser:
 [vars]
-ALLOWED_ORIGIN = "https://YOUR-SITE.pages.dev"
+ALLOWED_ORIGIN = "https://hanoi-today.vercel.app"
+
+# OPTIONAL — keep uploaded photos in Cloudflare R2 (10 GB free; the dashboard asks for a payment card to enable R2).
+# Without it, photos go into the D1 database (fine for a few hundred small photos). To turn R2 on:
+#   npx wrangler r2 bucket create hanoi-today-images      then remove the leading # on the 3 lines below and run: npm run deploy:api
+# [[r2_buckets]]
+# binding = "IMAGES"
+# bucket_name = "hanoi-today-images"

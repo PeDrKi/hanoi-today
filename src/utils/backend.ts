@@ -62,3 +62,13 @@ export async function adminDeleteReview(token: string, id: number): Promise<void
   const r = await fetch(API_URL + '/v1/admin/reviews/' + id, { method: 'DELETE', headers: auth(token) })
   if (!r.ok) throw new Error('http ' + r.status)
 }
+
+/**
+ * Upload one photo (already shrunk in the browser) for a place. Returns the address to store in the place's `image` field;
+ * `?v=` changes on every upload so browsers never show an old picture.
+ */
+export async function adminUploadImage(token: string, placeId: string, blob: Blob): Promise<string> {
+  const r = await fetch(API_URL + '/v1/admin/img/' + encodeURIComponent(placeId), { method: 'PUT', headers: { 'Content-Type': blob.type || 'application/octet-stream', ...auth(token) }, body: blob })
+  if (!r.ok) throw new Error('http ' + r.status)
+  return `${API_URL}/v1/img/${encodeURIComponent(placeId)}?v=${Date.now()}`
+}

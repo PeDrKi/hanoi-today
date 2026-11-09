@@ -14,6 +14,11 @@
 //     GET  /v1/admin/me              → 200 { name, role }                any admin (also used to check a token)
 //     GET  /v1/admin/stats           → 200 { stats }                     viewer
 //     GET  /v1/admin/audit?limit=    → 200 { entries }                   viewer
+//   Photos
+//     GET  /v1/img/:placeId          → image bytes                       public, cached
+//     PUT  /v1/admin/img/:placeId    → 200 { url, bytes }                editor; body = the image itself (jpeg/png/webp, ≤ 450 KB)
+//     DELETE /v1/admin/img/:placeId  → 200 { ok:true }                   editor
+//   Stored in the R2 bucket IMAGES when one is bound, otherwise in the D1 table `images`.
 //   Admins are configured with the secret ADMIN_TOKENS = "name:token[:role],…" (role: viewer | editor, default editor);
 //   the older single secret ADMIN_TOKEN still works and means editor "admin".
 import type { Api } from './db'
@@ -26,6 +31,7 @@ export const MAX_DATA = 60000
 export const MAX_PLACES = 500
 export const MAX_PLACE_BYTES = 8000
 export const MAX_REVIEW_BYTES = 4000
+export const MAX_IMAGE_BYTES = 450_000
 export const REVIEW_LIMIT = 5                 // reviews per visitor …
 export const REVIEW_WINDOW_MS = 3600 * 1000   // … per hour
 
@@ -97,14 +103,31 @@ function sameToken(a: string, b: string): boolean {
   return d === 0
 }
 
-export interface HandleOpts { origin?: string; admins?: Admin[]; /** visitor address, used only to rate-limit (stored as a salted hash) */ ip?: string }
+/** Where photos live. Default = the D1 table through `api`; the Worker passes an R2 store when a bucket is bound. */
+export interface BlobStore {
+  put(id: string, mime: string, bytes: Uint8Array): Promise<'ok' | 'full'>
+  get(id: string): Promise<{ mime: string; bytes: Uint8Array } | null>
+  del(id: string): Promise<boolean>
+}
+const PLACE_ID_RE = /^[A-Za-z0-9_-]{1,24}$/
+
+/** The real type from the first bytes (the Content-Type header is not trusted). SVG is deliberately not allowed. */
+export function sniffImage(b: Uint8Array): 'image/jpeg' | 'image/png' | 'image/webp' | null {
+  if (b.length > 12 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg'
+  if (b.length > 12 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png'
+  if (b.length > 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp'
+  return null
+}
+
+export interface HandleOpts { blobs?: BlobStore; origin?: string; admins?: Admin[]; /** visitor address, used only to rate-limit (stored as a salted hash) */ ip?: string }
 
 async function hashIp(ip: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('hanoi-today:ip:' + ip))
   return [...new Uint8Array(buf)].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-export async function handle(request: Request, api: Api, { origin = '*', admins = [], ip = '' }: HandleOpts = {}): Promise<Response> {
+export async function handle(request: Request, api: Api, { origin = '*', admins = [], ip = '', blobs }: HandleOpts = {}): Promise<Response> {
+  const store: BlobStore = blobs ?? { put: (id, mime, b) => api.putImage(id, mime, b), get: id => api.getImage(id), del: id => api.deleteImage(id) }
   const h = { ...cors(origin), 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
   const json = (obj: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(obj), { status, headers: { ...h, ...extra } })
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: h })
@@ -153,6 +176,39 @@ export async function handle(request: Request, api: Api, { origin = '*', admins 
     await api.replacePlaces(list as { id: string }[])
     await api.audit(who.name, 'places.save', `${list.length} địa điểm · thêm ${added.length}${added.length ? ' (' + added.slice(0, 5).join(', ') + ')' : ''} · sửa ${changed.length}${changed.length ? ' (' + changed.slice(0, 5).join(', ') + ')' : ''} · xoá ${removed.length}${removed.length ? ' (' + removed.slice(0, 5).join(', ') + ')' : ''}`)
     return json({ count: list.length })
+  }
+
+  // ── photos ──
+  const img = /^\/v1\/img\/([A-Za-z0-9_-]{1,24})$/.exec(path)
+  if (img && request.method === 'GET') {
+    const f = await store.get(img[1])
+    if (!f) return json({ error: 'not found' }, 404)
+    return new Response(f.bytes, { status: 200, headers: {
+      'Content-Type': f.mime, 'X-Content-Type-Options': 'nosniff', 'Access-Control-Allow-Origin': '*', 'Cross-Origin-Resource-Policy': 'cross-origin',
+      // the app adds ?v=<time> after every upload, so a versioned URL never changes and may be cached for a year
+      'Cache-Control': url.searchParams.has('v') ? 'public, max-age=31536000, immutable' : 'public, max-age=300',
+    } })
+  }
+  const upl = /^\/v1\/admin\/img\/([^/]+)$/.exec(path)
+  if (upl && request.method === 'PUT') {
+    const who = admin('editor'); if (who instanceof Response) return who
+    if (!PLACE_ID_RE.test(upl[1])) return json({ error: 'bad id' }, 400)
+    if (Number(request.headers.get('content-length') || 0) > MAX_IMAGE_BYTES) return json({ error: 'too large' }, 413)
+    let bytes: Uint8Array
+    try { bytes = new Uint8Array(await request.arrayBuffer()) } catch { return json({ error: 'bad body' }, 400) }
+    if (bytes.length > MAX_IMAGE_BYTES) return json({ error: 'too large' }, 413)
+    const mime = sniffImage(bytes)
+    if (!mime) return json({ error: 'not an image (jpeg, png or webp)' }, 415)
+    if ((await store.put(upl[1], mime, bytes)) === 'full') return json({ error: 'full' }, 429)
+    await api.audit(who.name, 'image.upload', `ảnh ${upl[1]} · ${Math.round(bytes.length / 1024)} KB`)
+    return json({ url: '/v1/img/' + upl[1], bytes: bytes.length })
+  }
+  if (upl && request.method === 'DELETE') {
+    const who = admin('editor'); if (who instanceof Response) return who
+    if (!PLACE_ID_RE.test(upl[1])) return json({ error: 'bad id' }, 400)
+    await store.del(upl[1])
+    await api.audit(who.name, 'image.delete', `ảnh ${upl[1]}`)
+    return json({ ok: true })
   }
 
   // ── reviews ──

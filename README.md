@@ -310,3 +310,25 @@ Chuyển các tính năng dùng chung của SapaSense sang Hà Nội (phần ri�
 - Thẻ Khám phá có khoảng cách dưới ảnh; nút thang điểm khảo sát đạt cỡ chạm 44px.
 
 **Triển khai Vercel + Cloudflare**: xem `DEPLOY-VERCEL.md` (giao diện trên Vercel, máy chủ dữ liệu trên Cloudflare Workers + D1). Hướng dẫn cũ toàn Cloudflare vẫn ở `DEPLOY.md`.
+
+
+## v38 — Thêm ảnh địa điểm (3 cách)
+
+Trong Admin → Địa điểm → Sửa, mục **Ảnh địa điểm**:
+
+1. **Tải ảnh từ máy (A/C):** chọn ảnh JPG/PNG/WebP; trình duyệt tự thu nhỏ (cạnh dài 1000px, ≤ ~350 KB) rồi gửi lên máy chủ. Ảnh được lưu vào **R2** nếu đã gắn bucket `IMAGES`, nếu không thì vào bảng **D1 `images`**. Sau khi tải, bấm **Lưu** để địa điểm dùng ảnh đó.
+2. **Dán link (B):** dán link ảnh https. Link Google Drive, Imgur, Dropbox, Wikimedia Commons tự đổi thành link ảnh trực tiếp; link Facebook/Instagram/Google Photos bị từ chối kèm lý do.
+3. **Cách cũ:** bỏ file vào `public/places/<MÃ>.jpg` rồi `npm run images`.
+
+Cập nhật máy chủ cho tính năng này (một lần): chạy lại schema để tạo bảng `images`, rồi deploy API.
+
+```
+cd sync-server
+npx wrangler d1 execute hanoi-today --remote --file=schema.sql
+cd ..
+npm run deploy:api
+```
+
+Dùng R2 (tuỳ chọn, cần thẻ thanh toán để bật R2, có 10 GB miễn phí): `npx wrangler r2 bucket create hanoi-today-images`, bỏ dấu `#` ở 3 dòng `[[r2_buckets]]` cuối `wrangler.toml`, rồi `npm run deploy:api`.
+
+Giới hạn: ảnh ≤ 450 KB sau khi nén, tối đa 600 ảnh khi lưu ở D1; SVG bị từ chối (bảo mật). Khi chưa cấu hình `VITE_API_URL`, ảnh nhỏ (≤ 70 KB) được lưu ngay trong trình duyệt.

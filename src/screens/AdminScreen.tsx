@@ -1,10 +1,11 @@
 import PlaceImage from '../components/PlaceImage'
-import { useState, useEffect, type ReactNode } from 'react'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
 import type { Place, PlaceType, Review } from '../types'
 import { getPlaces, savePlaces, resetPlaces, cacheRemotePlaces } from '../data/placeStore'
 import { PLACES } from '../data/places'
 import { API_URL } from '../config'
-import { adminMe, adminReviews, adminSavePlaces, adminStats, adminAudit, adminDeleteReview, getAdminToken, setAdminToken, type AdminMe, type AdminStats, type AuditEntry } from '../utils/backend'
+import { adminMe, adminReviews, adminSavePlaces, adminStats, adminAudit, adminDeleteReview, adminUploadImage, getAdminToken, setAdminToken, type AdminMe, type AdminStats, type AuditEntry } from '../utils/backend'
+import { resizeToBlob, blobToDataUrl, normalizeImageUrl } from '../utils/imageTools'
 import { INTERVIEWS, B1_SUMMARY } from '../data/interviewData'
 import { susScore, susBand, pearson, CTX_KEYS, CTX_VI } from '../utils/sus'
 import { C, MARKER_COLORS }    from '../styles/tokens'
@@ -190,7 +191,7 @@ function PlacesModule({ places, setPlaces, canEdit }: { places: Place[]; setPlac
   }
   const save = async (draft: PlaceDraft) => {
     const place = draft as unknown as Place
-    const updated = isNew ? [...places, { ...place, id:`CUSTOM_${Date.now()}` }] : places.map(p => p.id===place.id ? place : p)
+    const updated = isNew ? [...places, { ...place, id: place.id || `CUSTOM_${Date.now()}` }] : places.map(p => p.id===place.id ? place : p)
     if (await persist(updated)) { setPlaces(updated); setEditing(null) }
   }
 
@@ -220,7 +221,7 @@ function PlacesModule({ places, setPlaces, canEdit }: { places: Place[]; setPlac
         <select aria-label="Lọc theo loại" value={filter} onChange={e => setFilter(e.target.value)} style={{ padding:'0.6rem', fontSize:'0.83rem', border:`1px solid ${A.border}`, background:'white', cursor:'pointer' }}>
           {['all','attraction','food','cafe','museum','nature','market','lodging'].map(t => <option key={t} value={t}>{t==='all'?'Tất cả':t}</option>)}
         </select>
-        {canEdit && <button onClick={() => { setEditing({ id:'',name:'',area:'Hoàn Kiếm',lat:'',lng:'',type:'attraction',moods:[],groups:[],indoor:false,timeOfDay:[],duration:60,cost:0,desc:'',badges:[],tip:'' }); setIsNew(true) }} style={{ background:A.ink, color:A.cream, border:'none', padding:'0.6rem 1rem', fontSize:'0.83rem', cursor:'pointer', fontFamily:"'Be Vietnam Pro',sans-serif" }}>+ Thêm</button>}
+        {canEdit && <button onClick={() => { setEditing({ id:`CUSTOM_${Date.now()}`,name:'',area:'Hoàn Kiếm',lat:'',lng:'',type:'attraction',moods:[],groups:[],indoor:false,timeOfDay:[],duration:60,cost:0,desc:'',badges:[],tip:'' }); setIsNew(true) }} style={{ background:A.ink, color:A.cream, border:'none', padding:'0.6rem 1rem', fontSize:'0.83rem', cursor:'pointer', fontFamily:"'Be Vietnam Pro',sans-serif" }}>+ Thêm</button>}
         <button onClick={exportJSON} style={{ background:'transparent', color:A.muted, border:`1px solid ${A.border}`, padding:'0.6rem 1rem', fontSize:'0.83rem', cursor:'pointer', fontFamily:"'Be Vietnam Pro',sans-serif" }}>⬇ Xuất JSON</button>
         {canEdit && <button onClick={() => void reset()} style={{ background:'transparent', color:A.red, border:`1px solid ${A.red}`, padding:'0.6rem 1rem', fontSize:'0.83rem', cursor:'pointer', fontFamily:"'Be Vietnam Pro',sans-serif" }}>↺ Reset</button>}
       </div>
@@ -282,6 +283,64 @@ function PlacesModule({ places, setPlaces, canEdit }: { places: Place[]; setPlac
   )
 }
 
+/** Photo of a place: upload from the computer (shrunk here first), or paste a link. */
+function ImageField({ id, form, set, inp, lbl }: { id: string; form: PlaceDraft; set: (k: keyof PlaceDraft, v: unknown) => void; inp: React.CSSProperties; lbl: React.CSSProperties }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null)
+  const [link, setLink] = useState(form.image && !form.image.startsWith('data:') ? form.image : '')
+  const fileRef = useRef<HTMLInputElement>(null)
+  const why = (e: unknown) => {
+    const m = (e as Error).message
+    return m === 'decode' ? 'Không đọc được ảnh này. Hãy dùng JPG, PNG hoặc WebP (ảnh HEIC của iPhone cần đổi sang JPG trước).'
+      : m === 'toolarge' ? 'Không nén ảnh đủ nhỏ được. Hãy chọn ảnh khác.'
+      : m === 'http 413' ? 'Ảnh quá lớn.' : m === 'http 415' ? 'Máy chủ chỉ nhận JPG, PNG, WebP.'
+      : m === 'http 429' ? 'Kho ảnh đã đầy.' : /http 40[13]/.test(m) ? 'Tài khoản không có quyền tải ảnh lên.'
+      : 'Không tải được ảnh: ' + m
+  }
+  const pick = async (f: File | undefined) => {
+    if (!f) return
+    setBusy(true); setMsg(null)
+    try {
+      if (API_URL) {
+        const blob = await resizeToBlob(f, { maxSide: 1000, maxBytes: 350_000 })
+        const url = await adminUploadImage(getAdminToken(), id, blob)
+        set('image', url); setLink('')
+        setMsg({ ok: true, t: `Đã tải lên (${Math.round(blob.size / 1024)} KB). Bấm "Lưu" để áp dụng.` })
+      } else {
+        const blob = await resizeToBlob(f, { maxSide: 640, maxBytes: 70_000 })   // no server: the photo lives inside the place, in this browser
+        set('image', await blobToDataUrl(blob)); setLink('')
+        setMsg({ ok: true, t: `Đã thêm ảnh (${Math.round(blob.size / 1024)} KB, lưu trong trình duyệt này). Bấm "Lưu" để áp dụng.` })
+      }
+    } catch (e) { setMsg({ ok: false, t: why(e) }) }
+    finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
+  }
+  const applyLink = () => {
+    const r = normalizeImageUrl(link)
+    if (r.error) { setMsg({ ok: false, t: r.error }); return }
+    set('image', r.url); setLink(r.url)
+    setMsg(r.url ? { ok: true, t: r.note || 'Đã dùng link này. Nếu khung xem trước vẫn là ảnh màu, link không tải được.' } : null)
+  }
+  const btn = { background:'transparent', border:`1px solid ${A.border}`, padding:'0.5rem 0.85rem', fontSize:'0.78rem', cursor:busy?'wait':'pointer', fontFamily:"'Be Vietnam Pro',sans-serif", color:A.ink } as const
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      <label htmlFor="pf-img" style={lbl}>Ảnh địa điểm</label>
+      <div style={{ maxWidth:260 }}><PlaceImage id={id||'new'} name={form.name||''} type={(form.type||'attraction') as PlaceType} area={form.area} image={form.image} imageCredit={form.imageCredit} height={130}/></div>
+      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+        <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display:'none' }} onChange={e => void pick(e.target.files?.[0])} aria-label="Chọn ảnh từ máy"/>
+        <button type="button" disabled={busy} onClick={() => fileRef.current?.click()} style={btn}>{busy ? 'Đang xử lý…' : '⬆ Tải ảnh từ máy'}</button>
+        {form.image && <button type="button" disabled={busy} onClick={() => { set('image',''); setLink(''); setMsg(null) }} style={{ ...btn, color:A.red, borderColor:A.red }}>Bỏ ảnh</button>}
+      </div>
+      <div style={{ display:'flex', gap:8 }}>
+        <input id="pf-img" style={{ ...inp, flex:1 }} placeholder="…hoặc dán link ảnh (https://…)" value={link} onChange={e => setLink(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyLink() } }}/>
+        <button type="button" onClick={applyLink} style={btn}>Dùng link</button>
+      </div>
+      {msg && <div role="status" style={{ fontSize:'0.74rem', color: msg.ok ? A.green : A.red }}>{msg.t}</div>}
+      <div style={{ fontSize:'0.7rem', color:A.muted }}>Ảnh tải lên được tự thu nhỏ (cạnh dài {API_URL ? '1000' : '640'}px). Chỉ dùng ảnh bạn có quyền sử dụng và ghi nguồn bên dưới.</div>
+      <div><label htmlFor="pf-imgc" style={lbl}>Nguồn / tác giả ảnh</label><input id="pf-imgc" style={inp} placeholder="Tên tác giả, giấy phép" value={form.imageCredit||''} onChange={e => set('imageCredit',e.target.value)}/></div>
+    </div>
+  )
+}
+
 function PlaceForm({ place, isNew, onSave, onClose }: { place: PlaceDraft; isNew: boolean; onSave: (p: PlaceDraft) => void; onClose: () => void }) {
   const [form, setForm] = useState<PlaceDraft>({ ...place })
   const set = (k: keyof PlaceDraft, v: unknown) => setForm(f => ({ ...f, [k]: v }))
@@ -332,9 +391,7 @@ function PlaceForm({ place, isNew, onSave, onClose }: { place: PlaceDraft; isNew
         <div><label htmlFor="pf-closed" style={lbl}>Ngày nghỉ</label><input id="pf-closed" style={inp} placeholder="Thứ Hai / Không nghỉ" value={form.closedNote||''} onChange={e => set('closedNote',e.target.value)}/></div>
         <div><label htmlFor="pf-addr" style={lbl}>Địa chỉ</label><input id="pf-addr" style={inp} value={form.address||''} onChange={e => set('address',e.target.value)}/></div>
         <div><label htmlFor="pf-note" style={lbl}>Ghi chú</label><input id="pf-note" style={inp} value={form.note||''} onChange={e => set('note',e.target.value)}/></div>
-        <div><label htmlFor="pf-img" style={lbl}>Ảnh (đường dẫn https:// hoặc places/&lt;mã&gt;.jpg)</label><input id="pf-img" style={inp} placeholder="https://… hoặc để trống" value={form.image||''} onChange={e => set('image',e.target.value)}/></div>
-        <div><label htmlFor="pf-imgc" style={lbl}>Nguồn / tác giả ảnh</label><input id="pf-imgc" style={inp} placeholder="Tên tác giả, giấy phép" value={form.imageCredit||''} onChange={e => set('imageCredit',e.target.value)}/></div>
-        <div style={{ maxWidth:260 }}><PlaceImage id={form.id||'new'} name={form.name||''} type={(form.type||'attraction') as PlaceType} area={form.area} image={form.image} imageCredit={form.imageCredit} height={110}/></div>
+        <ImageField id={form.id} form={form} set={set} inp={inp} lbl={lbl}/>
         <div><label htmlFor="pf-10" style={lbl}>Badges (phân cách bằng dấu phẩy)</label><input id="pf-10" style={inp} value={(form.badges||[]).join(', ')} onChange={e => set('badges',e.target.value.split(',').map(s=>s.trim()).filter(Boolean))}/></div>
         <div>
           <label style={lbl}>Tâm trạng phù hợp</label>

@@ -26,6 +26,9 @@ export interface Api {
   stats(): Promise<Stats>
   audit(actor: string, action: string, detail: string): Promise<void>
   listAudit(limit: number): Promise<AuditEntry[]>
+  putImage(id: string, mime: string, bytes: Uint8Array): Promise<'ok' | 'full'>
+  getImage(id: string): Promise<{ mime: string; bytes: Uint8Array } | null>
+  deleteImage(id: string): Promise<boolean>
   /** Count one hit for `key` in the current time window; false when the limit is exceeded. */
   hit(key: string, limit: number, windowMs: number): Promise<boolean>
 }
@@ -35,6 +38,10 @@ export interface AuditEntry { id: number; at: number; actor: string; action: str
 
 export const SYNC_TTL_MS = 365 * 24 * 3600 * 1000
 export const MAX_REVIEWS = 50000
+export const MAX_IMAGES = 600
+
+function toB64(b: Uint8Array): string { let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s) }
+function fromB64(s: string): Uint8Array { const bin = atob(s); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out }
 
 export function d1Api(db: D1Like, now: () => number = Date.now): Api {
   const getSync = async (id: string): Promise<SyncRecord | null> => {
@@ -99,6 +106,24 @@ export function d1Api(db: D1Like, now: () => number = Date.now): Api {
       if (Math.random() < 0.02) await db.prepare('DELETE FROM rate WHERE win < ?').bind(win - 1).run()
       const r = await db.prepare('SELECT n FROM rate WHERE key = ?').bind(key).first<{ n: number }>()
       return (r?.n ?? 1) <= limit
+    },
+    async putImage(id, mime, bytes) {
+      const have = await db.prepare('SELECT 1 AS x FROM images WHERE id = ?').bind(id).first()
+      if (!have) {
+        const n = await db.prepare('SELECT COUNT(*) AS n FROM images').first<{ n: number }>()
+        if ((n?.n ?? 0) >= MAX_IMAGES) return 'full'
+      }
+      await db.prepare('INSERT INTO images (id, mime, data, bytes, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET mime = excluded.mime, data = excluded.data, bytes = excluded.bytes, updated_at = excluded.updated_at')
+        .bind(id, mime, toB64(bytes), bytes.length, now()).run()
+      return 'ok'
+    },
+    async getImage(id) {
+      const r = await db.prepare('SELECT mime, data FROM images WHERE id = ?').bind(id).first<{ mime: string; data: string }>()
+      return r ? { mime: r.mime, bytes: fromB64(r.data) } : null
+    },
+    async deleteImage(id) {
+      const r = await db.prepare('DELETE FROM images WHERE id = ?').bind(id).run()
+      return (r.meta.changes ?? 0) === 1
     },
     async listReviews(limit) {
       const { results } = await db.prepare('SELECT id, created_at, json FROM reviews ORDER BY id DESC LIMIT ?').bind(limit).all<{ id: number; created_at: number; json: string }>()

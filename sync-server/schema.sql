@@ -39,3 +39,12 @@ CREATE TABLE IF NOT EXISTS rate (
   win INTEGER NOT NULL,
   n   INTEGER NOT NULL
 );
+
+-- Photos uploaded from the Admin screen when no R2 bucket is bound (small, already compressed in the browser; base64 text).
+CREATE TABLE IF NOT EXISTS images (
+  id         TEXT PRIMARY KEY,          -- place id
+  mime       TEXT NOT NULL,
+  data       TEXT NOT NULL,             -- base64
+  bytes      INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
