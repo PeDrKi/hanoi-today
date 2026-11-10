@@ -382,3 +382,11 @@ Người dùng chưa biết đi đâu nhưng muốn có một nơi cụ thể tr
 (ở bước "Bạn muốn tìm gì?" hoặc bằng nút "＋ Thêm vào lộ trình" ở bản đồ / Khám phá). Lộ trình luôn chứa các nơi đó
 (nhãn 📌 Bạn chọn, kèm ghi chú nếu giá/thời tiết/mùa chưa lý tưởng) và app xếp thêm điểm quanh đó.
 Nơi không thể xếp (đóng cửa, không có giờ, hết chỗ) được báo rõ lý do. Chỉ frontend — dùng `cap-nhat.bat` mục 1.
+
+## v43 — Chỉ đường thật theo từng phương tiện
+
+Tab Bản đồ của lộ trình có chọn 🛵 Xe máy / 🚗 Ô tô / 🚌 Xe buýt / 🚶 Đi bộ. Đường vẽ bám theo phố (OSRM của
+routing.openstreetmap.de, miễn phí, không cần key), có tổng km/phút, từng chặng và hướng dẫn rẽ. Xe máy và ô tô dùng chung
+mạng đường (OSRM không có profile xe máy); thời gian là ước tính khi đường thông. Xe buýt: không có dữ liệu giờ buýt miễn phí
+cho Hà Nội nên mỗi chặng mở chỉ đường buýt trên Google Maps (không tự bịa tuyến). Nếu dịch vụ lỗi/chậm, bản đồ quay về đường
+chim bay. Chỉ frontend — `cap-nhat.bat` mục 1. Code: `src/utils/routing.ts`, `src/components/RoutePanel.tsx`.

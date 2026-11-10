@@ -13,7 +13,7 @@ import { getPlaces } from '../data/placeStore'
 import { downloadICS } from '../utils/ics'
 import { SUS_VI, SUS_EN, CTX_KEYS, CTX_VI, CTX_EN, susScore, type CtxKey } from '../utils/sus'
 import { BtnPrimary, BtnSecondary }          from '../components/ui'
-const LeafletMap = lazy(() => import('../components/LeafletMap'))
+const RoutePanel = lazy(() => import('../components/RoutePanel'))
 import LangToggle                             from '../components/LangToggle'
 import { C, MARKER_COLORS }                  from '../styles/tokens'
 import { recommend, getBudgetAmount, swapStop, rebuildPlan, effectiveNow, isRainyCode, moveStop, localISO } from '../utils/recommend'
@@ -594,7 +594,7 @@ export default function ResultScreen({ answers, wx, onRestart, onAdjust, shared 
             {/* MAP TAB */}
             {tab === 'map' && (
               <div>
-                <Suspense fallback={<div className="skeleton" style={{ height:380 }}/>}><LeafletMap stops={result.stops||[]}/></Suspense>
+                <Suspense fallback={<div className="skeleton" style={{ height:380 }}/>}><RoutePanel stops={result.stops||[]}/></Suspense>
                 <div style={{ marginTop:'1rem', padding:'1rem', background:C.card, border:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:7 }}>
                   <p style={{ fontSize:'0.72rem', color:C.muted, letterSpacing:'0.06em', textTransform:'uppercase', marginBottom:2 }}>Chú thích điểm dừng</p>
                   {result.stops?.map((s,i) => (
