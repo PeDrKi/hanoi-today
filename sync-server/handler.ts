@@ -14,6 +14,10 @@
 //     GET  /v1/admin/me              → 200 { name, role }                any admin (also used to check a token)
 //     GET  /v1/admin/stats           → 200 { stats }                     viewer
 //     GET  /v1/admin/audit?limit=    → 200 { entries }                   viewer
+//   Place ratings (1–5 stars, one per anonymous device per place, changeable)
+//     PUT  /v1/rate/:placeId  {device, stars}  → 200 { ok:true }         public, 60 per hour per visitor
+//     GET  /v1/ratings                         → 200 { ratings:{id:{avg,n}} }   public, cached 2 min
+//     DELETE /v1/admin/ratings/:placeId        → 200 { removed }         editor (clears spam for one place)
 //   Photos
 //     GET  /v1/img/:placeId          → image bytes                       public, cached
 //     PUT  /v1/admin/img/:placeId    → 200 { url, bytes }                editor; body = the image itself (jpeg/png/webp, ≤ 450 KB)
@@ -32,6 +36,7 @@ export const MAX_PLACES = 500
 export const MAX_PLACE_BYTES = 8000
 export const MAX_REVIEW_BYTES = 4000
 export const MAX_IMAGE_BYTES = 450_000
+export const RATE_LIMIT = 60                   // place ratings per visitor per hour
 export const REVIEW_LIMIT = 5                 // reviews per visitor …
 export const REVIEW_WINDOW_MS = 3600 * 1000   // … per hour
 
@@ -209,6 +214,25 @@ export async function handle(request: Request, api: Api, { origin = '*', admins 
     await store.del(upl[1])
     await api.audit(who.name, 'image.delete', `ảnh ${upl[1]}`)
     return json({ ok: true })
+  }
+
+  // ── place ratings ──
+  const rate = /^\/v1\/rate\/([A-Za-z0-9_-]{1,24})$/.exec(path)
+  if (rate && request.method === 'PUT') {
+    const body = await readBody(512)
+    if (body instanceof Response) return body
+    const b = body as { device?: unknown; stars?: unknown }
+    if (!isObj(b) || typeof b.device !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(b.device) || !Number.isInteger(b.stars) || (b.stars as number) < 1 || (b.stars as number) > 5) return json({ error: 'bad rating' }, 400)
+    if (ip && !(await api.hit('rate:' + (await hashIp(ip)), RATE_LIMIT, REVIEW_WINDOW_MS))) return json({ error: 'too many' }, 429, { 'Retry-After': '3600' })
+    return (await api.ratePlace(rate[1], b.device, b.stars as number)) === 'full' ? json({ error: 'full' }, 429) : json({ ok: true })
+  }
+  if (path === '/v1/ratings' && request.method === 'GET') return json({ ratings: await api.placeRatings() }, 200, { 'Cache-Control': 'public, max-age=120' })
+  const delr = /^\/v1\/admin\/ratings\/([A-Za-z0-9_-]{1,24})$/.exec(path)
+  if (delr && request.method === 'DELETE') {
+    const who = admin('editor'); if (who instanceof Response) return who
+    const removed = await api.deletePlaceRatings(delr[1])
+    await api.audit(who.name, 'rating.clear', `xoá ${removed} lượt chấm của ${delr[1]}`)
+    return json({ removed })
   }
 
   // ── reviews ──

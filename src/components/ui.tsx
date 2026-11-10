@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 
-interface BtnProps { children?: ReactNode; onClick?: () => void; disabled?: boolean; style?: CSSProperties }
+interface BtnProps { children?: ReactNode; onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void; disabled?: boolean; style?: CSSProperties }
 import { C } from '../styles/tokens'
 
 export function Grain() {
@@ -16,7 +16,8 @@ export function StepBar({ step, total=4 }: { step: number; total?: number }) {
   return (
     <div style={{ display:'flex', gap:6, marginBottom:'2.5rem' }}>
       {Array.from({length:total}).map((_,i) => (
-        <div key={i} style={{ flex:1, height:4, borderRadius:999, transition:'background 0.4s', background: i<=step ? C.rust : C.border }}/>
+        // transformation: the current step stretches into a longer pill, finished steps shrink back to dots of the same height
+        <div key={i} style={{ flex: i===step ? 3 : 1, height:4, borderRadius:999, transition:'flex .5s var(--ease-out), background .4s', background: i<=step ? C.rust : C.border }}/>
       ))}
     </div>
   )

@@ -19,6 +19,8 @@ export interface RawPlace {
   /** Photo: https URL, or a file in public/places (see README). Optional — a drawn cover is shown without it. */
   image?: string; imageCredit?: string
   hours?: string; address?: string; closedNote?: string; note?: string   // giờ mở cửa "HH:MM–HH:MM" hoặc "24/24", địa chỉ, ngày nghỉ, ghi chú
+  /** Điểm do ban biên tập chọn là "đáng đến nhất" (cột "Nổi bật" trong Excel) — luôn đứng đầu mục gợi ý trên bản đồ. */
+  featured?: boolean
   img?: string; imgCredit?: string   // alias của image / imageCredit (tương thích dữ liệu mẫu SapaSense)
 }
 export interface Place extends RawPlace {
@@ -55,6 +57,8 @@ export interface Answers {
   recent?: string[]
   visited?: string[]
   favs?: string[]
+  /** Địa điểm người dùng muốn ghé (tối đa 3, mã trong dữ liệu): luôn được xếp vào lộ trình nếu còn mở cửa, phần còn lại do app gợi ý quanh đó. */
+  must?: string[]
 }
 
 export type Warn = 'closed' | 'hours' | 'late' | null
@@ -66,13 +70,20 @@ export interface Stop {
   localScore?: number; hiddenGem?: boolean; displayTime?: string | null; warn: Warn
   image?: string; imageCredit?: string; hours?: string; address?: string
   why: Why[]; distKm: number | null
+  /** Điểm do người dùng chọn trước, kèm lưu ý nếu nó không hợp ngân sách / thời tiết / mùa. */
+  must?: boolean; mustNotes?: MustNote[]
   menu: MenuItem[] | null; menuSrc: string[] | null; menuChecked: string; menuNote: string
   priceQuality: PriceQuality | null
 }
 
+export type MustNote = 'budget' | 'weather' | 'offseason'
+/** Điểm người dùng chọn nhưng không xếp được: đóng cửa ngày đó, ngoài khung giờ hợp, hoặc lộ trình không đủ chỗ. */
+export interface Unmet { id: string; name: string; reason: 'closed' | 'time' | 'limit' }
+
 export interface Plan {
   narrative: string; mode: Mode; startsTomorrow: boolean; startHour: number; dateISO: string
   stops: Stop[]
+  unmet?: Unmet[]
 }
 
 /** Place after scheduling (before turning into a Stop). */

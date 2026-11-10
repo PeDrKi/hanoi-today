@@ -75,7 +75,7 @@ button:focus:not(:focus-visible),[role=radio]:focus:not(:focus-visible){outline:
    Inline styles that set their own borderRadius still win; everything else inherits these. */
 button,select,input:not([type=range]):not([type=checkbox]):not([type=radio]),textarea,.btn-a{border-radius:var(--r-md)}
 a.btn-a{display:inline-block;transition:transform .15s,box-shadow .15s,background .2s}
-button:not(:disabled),.btn-a{transition:transform .15s ease,box-shadow .15s ease,background-color .2s,color .2s,border-color .2s,opacity .2s}
+button:not(:disabled),.btn-a{transition:transform .2s var(--ease-out),box-shadow .2s var(--ease-out),background-color .2s,color .2s,border-color .2s,opacity .2s}
 button:not(:disabled):hover,.btn-a:hover{box-shadow:0 3px 10px rgba(26,25,22,.12)}
 button:not(:disabled):active,.btn-a:active{transform:scale(.97);box-shadow:none}
 button:disabled{cursor:not-allowed}
@@ -130,6 +130,32 @@ body.bg-none::before{display:none}
 @media(max-width:640px){body::before{height:30vh}body.bg-hero::before{height:auto;opacity:1}.welcome-veil::before{background:radial-gradient(ellipse 90% 56% at 50% 54%,rgba(244,239,230,.88) 0%,rgba(244,239,230,.7) 60%,rgba(244,239,230,0) 100%)}}
 
 
+/* ───────── Motion principles (v39) — easing, parenting, obscuration, parallax, dimensionality, transformation, dolly & zoom, masking.
+   Where each one is used: see README "Chuyển động". Everything below is also covered by the prefers-reduced-motion rule. ───────── */
+:root{--ease-out:cubic-bezier(.16,1,.3,1);--ease-in:cubic-bezier(.5,0,.75,0);--ease-io:cubic-bezier(.65,0,.35,1)}
+/* parenting: a choice's icon follows its card when the card is picked */
+[role=radio]>span:first-child{display:inline-block;transition:transform .35s var(--ease-out)}
+[role=radio][aria-checked=true]>span:first-child{transform:translateX(3px) scale(1.2) rotate(-6deg)}
+/* star buttons: plain glyphs, not the card-style radio chips used by the questionnaire */
+[role=radio].star-btn,[role=radio].star-btn:hover,[role=radio].star-btn[aria-checked=true]{background:transparent!important;background-image:none!important;box-shadow:none!important;animation:none!important}
+/* masking: a photo opens like an iris once it has loaded */
+@keyframes irisIn{from{clip-path:circle(0% at 50% 50%)}to{clip-path:circle(75% at 50% 50%)}}
+.ph-img{opacity:0}
+.ph-img.ph-on{opacity:1;animation:irisIn .75s var(--ease-out) both}
+/* dimensionality: extra tips fold down from their top edge */
+@keyframes foldDown{from{opacity:0;transform:perspective(520px) rotateX(-88deg)}to{opacity:1;transform:perspective(520px) rotateX(0)}}
+.fold-in{transform-origin:50% 0;animation:foldDown .55s var(--ease-out) both}
+/* obscuration: a sheet slides in front of the page, which dims behind it */
+@keyframes dimIn{from{opacity:0}}
+@keyframes sheetIn{from{opacity:0;transform:translateY(46px) scale(.98)}}
+.sheet-backdrop{animation:dimIn .25s var(--ease-out) both}
+.sheet{animation:sheetIn .5s var(--ease-out) both}
+/* dolly & zoom (map): pins drop in one after another while the camera flies in */
+@keyframes pinDrop{from{opacity:0;transform:translateY(-26px) scale(.7)}to{opacity:1;transform:none}}
+.pin-drop{animation:pinDrop .55s var(--ease-out) both}
+/* parallax (welcome): the skyline drifts opposite to the pointer, a little */
+body.bg-hero::before{transform:translate3d(calc(var(--mx,0)*-12px),calc(var(--my,0)*-7px),0) scale(1.04);transition:transform .25s var(--ease-out)}
+
 /* ───────── Motion (v32) — all of it is switched off by the prefers-reduced-motion rule above ───────── */
 @keyframes rise{from{opacity:0;transform:translateY(16px)}}
 @keyframes pop{0%{transform:scale(.9)}55%{transform:scale(1.07)}100%{transform:scale(1)}}
@@ -137,7 +163,7 @@ body.bg-none::before{display:none}
 @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
 @keyframes slideIn{from{opacity:0;transform:translateX(-10px)}}
 /* screen change */
-.page-in{animation:rise .38s ease both}
+.page-in{animation:rise .42s var(--ease-out) both}
 /* welcome: staggered entrance */
 .welcome-veil>*:not([aria-hidden]){animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
 .welcome-veil>*:nth-child(3){animation-delay:.05s}.welcome-veil>*:nth-child(4){animation-delay:.12s}
@@ -147,7 +173,7 @@ body.bg-none::before{display:none}
 .welcome-veil>button:first-of-type{animation:rise .7s .4s cubic-bezier(.2,.7,.2,1) both,glow 3s 1.4s ease-in-out infinite}
 .welcome-veil>div[style*="border-radius: 50%"]{animation:rise .7s both,floaty 6s 1s ease-in-out infinite}
 /* result: stops arrive one after another, lift on hover */
-.stop-card{transition:transform .2s ease,box-shadow .2s ease}
+.stop-card{transition:transform .25s var(--ease-out),box-shadow .25s var(--ease-out)}
 .stop-card:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(26,25,22,.12)}
 .tab-bar,.result-header{animation:slideIn .4s ease both}
 /* toggles and choices pop when they switch on */

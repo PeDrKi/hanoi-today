@@ -10,7 +10,9 @@ import { gsap, reducedMotion, EASE } from '../utils/motion'
 import PlaceImage from '../components/PlaceImage'
 import SafetyNote from '../components/SafetyNote'
 import LangToggle from '../components/LangToggle'
-import { useLang } from '../i18n'
+import { useLang, useT } from '../i18n'
+import { MAX_MUST } from '../utils/recommend'
+import { useRatings, fmtAvg } from '../utils/ratings'
 import type { Place, Weather } from '../types'
 
 type Cat = 'all' | 'sight' | 'food' | 'stay'
@@ -41,9 +43,11 @@ const catOf = (p: Place): Cat => p.type === 'lodging' ? 'stay' : (p.type === 'fo
 const fmt = (n: number) => n.toLocaleString('vi-VN') + 'đ'
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
 
-export default function ExploreScreen({ wx, onHome, onPlan }: { wx: Weather | null; onHome: () => void; onPlan: () => void }) {
+export default function ExploreScreen({ wx, onHome, onPlan, mustIds = [], onToggleMust }: { wx: Weather | null; onHome: () => void; onPlan: () => void; mustIds?: string[]; onToggleMust?: (id: string) => void }) {
   const { lang } = useLang()
+  const t = useT()
   const x = L10N[lang as 'VI' | 'EN'] || L10N.VI
+  const { aggs } = useRatings()
   const all = useMemo(() => getPlaces(), [])
   const [cat, setCat] = useState<Cat>('all')
   const [area, setArea] = useState('')
@@ -121,7 +125,7 @@ export default function ExploreScreen({ wx, onHome, onPlan }: { wx: Weather | nu
               </div>
               <div style={{ fontWeight:600, fontSize:'0.95rem', marginBottom:4 }}>{p.name}</div>
               <div style={{ fontSize:'0.78rem', color:C.muted, lineHeight:1.5, marginBottom:6, display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{p.desc}</div>
-              <div style={{ fontSize:'0.82rem', fontWeight:600, color:C.rust }}>{priceOf(p)}</div>
+              <div style={{ fontSize:'0.82rem', fontWeight:600, color:C.rust, display:'flex', justifyContent:'space-between', gap:8 }}><span>{priceOf(p)}</span>{aggs[p.id]?.n > 0 && <span style={{ color:C.ink, fontWeight:600 }}>★ {fmtAvg(aggs[p.id].avg)} <span style={{ color:C.muted, fontWeight:400, fontSize:'0.72rem' }}>({aggs[p.id].n})</span></span>}</div>
             </button>
           ))}
         </div>
@@ -178,6 +182,7 @@ export default function ExploreScreen({ wx, onHome, onPlan }: { wx: Weather | nu
             {sel.tip && <p style={{ fontSize:'0.82rem', fontStyle:'italic', color:C.muted, lineHeight:1.6, marginBottom:10 }}>💡 {sel.tip}</p>}
             <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>{sel.badges.map(b => <span key={b} style={{ fontSize:'0.68rem', padding:'2px 8px', background:'rgba(26,25,22,0.06)' }}>{b}</span>)}</div>
             <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+              {(() => { const on = mustIds.includes(sel.id), full = !on && mustIds.length >= MAX_MUST; return <button type="button" disabled={full} aria-pressed={on} onClick={() => onToggleMust?.(sel.id)} style={{ ...chip(on), cursor:full?'not-allowed':'pointer', opacity:full?0.5:1, fontFamily:"'Be Vietnam Pro',sans-serif", background:on?C.rust:'none', color:on?'white':C.ink, border:`1px solid ${on?C.rust:C.border}` }}>{on ? t.result.inPlan : full ? t.result.planFull : t.result.addToPlan}</button> })()}
               <a href={stopDirectionsUrl(sel, 'driving')} target="_blank" rel="noopener noreferrer" style={{ ...chip(true), textDecoration:'none' }}>📍 {x.directions}</a>
               <button type="button" onClick={() => { toggleFav(sel.id); setFavs(favIds()) }} style={chip(false)}>{favs.includes(sel.id) ? x.faved : x.fav}</button>
               <button type="button" onClick={() => setSel(null)} style={chip(false)}>{x.close}</button>

@@ -1,3 +1,4 @@
+import { MAX_MUST } from '../utils/recommend'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import L from '../utils/leafletGlobal'
 import 'leaflet.markercluster'
@@ -11,12 +12,15 @@ import { C, MARKER_COLORS }      from '../styles/tokens'
 import { SkeletonMap }           from '../components/Skeleton'
 import LangToggle                from '../components/LangToggle'
 import { useT }                  from '../i18n'
+import { topPicksByType, type PickReason } from '../utils/topPicks'
+import PlaceRating from '../components/PlaceRating'
+import { useRatings, fmtAvg } from '../utils/ratings'
 import type { Place, PlaceType } from '../types'
 
 const TYPE_ICONS: Record<PlaceType, string>  = { attraction:'🏛', food:'🍜', cafe:'☕', museum:'🏺', nature:'🌿', market:'🛍', lodging:'🏨' }
 const TYPE_COLORS: Record<PlaceType, string> = { attraction:'#B85C2A', food:'#E8A020', cafe:'#6B4E35', museum:'#5A4A8A', nature:'#3D5C35', market:'#2A7BA8', lodging:'#4A7A8C' }
 
-export default function MapPreviewScreen({ onStart, onHome }: { onStart: () => void; onHome?: () => void }) {
+export default function MapPreviewScreen({ onStart, onHome, mustIds = [], onToggleMust }: { onStart: () => void; onHome?: () => void; mustIds?: string[]; onToggleMust?: (id: string) => void }) {
   const t  = useT()
   const m  = t.map
   const sl = t.seasons
@@ -34,6 +38,7 @@ export default function MapPreviewScreen({ onStart, onHome }: { onStart: () => v
   const [query,      setQuery]      = useState('')
   const [results,    setResults]    = useState<Place[]>([])
   const [showDrop,   setShowDrop]   = useState(false)
+  const [picksOpen,  setPicksOpen]  = useState(() => typeof window === 'undefined' || window.innerWidth >= 900)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<L.Map | null>(null)
@@ -45,6 +50,15 @@ export default function MapPreviewScreen({ onStart, onHome }: { onStart: () => v
   // "at its best" = the season text singles this month out; "fine" = month is in bestMonths; otherwise off-season
   const inSeasonIds = useMemo(() => new Set(PLACES_S.filter(p => seasonLevel(p.id, selMonth) === 'peak').map(p => p.id)), [PLACES_S, selMonth])
   const okIds       = useMemo(() => new Set(PLACES_S.filter(p => (p.bestMonths || []).includes(selMonth)).map(p => p.id)), [PLACES_S, selMonth])
+
+  // "Đáng đến nhất": best few of each category for the chosen month (all categories → 3 each; one category → 5)
+  const { aggs } = useRatings()
+  const picks = useMemo(
+    () => topPicksByType(PLACES_S, p => seasonLevel(p.id, selMonth), activeType === 'all' ? 3 : 5, activeType === 'all' ? undefined : [activeType], aggs),
+    [PLACES_S, selMonth, activeType, aggs])
+  const anyRated = picks.some(g => g.picks.some(k => k.reasons.includes('rated')))
+  const pickIds = useMemo(() => new Set(picks.flatMap(g => g.picks.map(k => k.place.id))), [picks])
+  const whyText: Record<PickReason, string> = { editor: m.whyEditor, peak: m.whyPeak, season: m.whySeason, wide: m.whyWide, rated: m.whyRated }
 
   // Search logic
   const handleSearch = (q: string) => {
@@ -105,6 +119,7 @@ export default function MapPreviewScreen({ onStart, onHome }: { onStart: () => v
       const icon = L.divIcon({
         className:'',
         html:`<div style="position:relative;opacity:${ins?1:ok?.75:.35};transform:scale(${ins?1:ok?.9:.75});transform-origin:bottom center">
+          ${pickIds.has(place.id)?`<div style="position:absolute;top:-10px;left:-9px;z-index:2;font-size:13px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.45))">⭐</div>`:''}
           ${ins?`<div style="position:absolute;top:-8px;right:-8px;background:#2E7D52;color:white;font-size:8px;padding:1px 4px;font-weight:700;white-space:nowrap">✓</div>`:''}
           <div class="custom-pin" style="background:${col}"><span>${TYPE_ICONS[place.type]||'📍'}</span></div>
         </div>`,
@@ -120,7 +135,7 @@ export default function MapPreviewScreen({ onStart, onHome }: { onStart: () => v
     const total   = visible.length
     const inSeas  = visible.filter(p => inSeasonIds.has(p.id)).length
     setStats({ total, inSeason:inSeas })
-  }, [PLACES_S, activeType, inSeasonIds, okIds])
+  }, [PLACES_S, activeType, inSeasonIds, okIds, pickIds])
 
   useEffect(() => { buildMap() }, [buildMap])
   useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null; clusterRef.current = null }, [])
@@ -232,6 +247,10 @@ export default function MapPreviewScreen({ onStart, onHome }: { onStart: () => v
             <span>{tp.icon}</span> {tp.label}
           </button>
         ))}
+        <button onClick={() => setPicksOpen(o => !o)} aria-pressed={picksOpen} aria-controls="map-picks"
+          style={{ background:picksOpen?'#E8A020':'white', color:picksOpen?C.ink:C.muted, border:`1px solid ${picksOpen?'#E8A020':C.border}`, padding:'0.3rem 0.8rem', fontSize:'0.78rem', cursor:'pointer', whiteSpace:'nowrap', fontFamily:"'Be Vietnam Pro',sans-serif", fontWeight:600, marginLeft:4 }}>
+          {m.picksBtn}
+        </button>
         <div style={{ marginLeft:'auto', display:'flex', gap:12, alignItems:'center', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:'0.72rem', color:'#2E7D52' }}>
             <div style={{ width:10, height:10, background:'#2E7D52', borderRadius:'50%' }}/>
@@ -248,7 +267,46 @@ export default function MapPreviewScreen({ onStart, onHome }: { onStart: () => v
       <div style={{ flex:1, position:'relative' }}>
         {!mapReady && <div style={{ position:'absolute', inset:0, zIndex:10 }}><SkeletonMap/></div>}
         <div ref={containerRef} style={{ width:'100%', height:'100%', opacity:mapReady?1:0, transition:'opacity 0.4s' }}/>
-        {tilesFailed && <div role="status" style={{ position:'absolute', left:12, right:12, bottom:36, zIndex:1100, background:'rgba(255,248,225,0.95)', border:'1px solid rgba(232,160,32,0.5)', padding:'0.5rem 0.8rem', fontSize:'0.75rem', color:'#6B4E00' }}>{t.result.mapNoTiles}</div>}
+        {tilesFailed && <div role="status" style={{ position:'absolute', left:60, right:12, top:12, zIndex:650, pointerEvents:'none', background:'rgba(255,248,225,0.95)', border:'1px solid rgba(232,160,32,0.5)', padding:'0.5rem 0.8rem', fontSize:'0.75rem', color:'#6B4E00' }}>{t.result.mapNoTiles}</div>}
+
+        {/* MUST-SEE PICKS */}
+        {picksOpen && (
+          <aside id="map-picks" className="map-picks" aria-label={m.picksTitle} style={{ position:'absolute', top:12, right:12, bottom:36, width:'min(340px, calc(100% - 24px))', zIndex:700, background:'rgba(244,239,230,0.97)', border:`1px solid ${C.border}`, boxShadow:'0 8px 28px rgba(26,25,22,.16)', borderRadius:14, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+            <div style={{ padding:'0.8rem 1rem 0.65rem', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'flex-start', gap:8 }}>
+              <div style={{ flex:1 }}>
+                <div style={{ fontFamily:"'Playfair Display',serif", fontSize:'1.05rem' }}>⭐ {m.picksTitle}</div>
+                <div style={{ fontSize:'0.7rem', color:C.muted }}>{m.picksSub(t.months[selMonth])}</div>
+              </div>
+              <button onClick={() => setPicksOpen(false)} aria-label={m.picksClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:'1rem', color:C.muted }}>✕</button>
+            </div>
+            <div style={{ overflowY:'auto', padding:'0.4rem 0.6rem 0.8rem', flex:1 }}>
+              {picks.length === 0 && <p style={{ fontSize:'0.8rem', color:C.muted, padding:'0.8rem 0.4rem' }}>{m.picksEmpty}</p>}
+              {picks.map(g => (
+                <section key={g.type} style={{ marginTop:'0.7rem' }}>
+                  <h4 style={{ fontSize:'0.68rem', letterSpacing:'0.1em', textTransform:'uppercase', color:TYPE_COLORS[g.type], margin:'0 0.4rem 0.3rem', display:'flex', gap:6, alignItems:'center' }}>
+                    <span aria-hidden="true">{TYPE_ICONS[g.type]}</span>{types.find(x => x.id === g.type)?.label}
+                  </h4>
+                  {g.picks.map((k, i) => (
+                    <button key={k.place.id} type="button" onClick={() => handleSelectSearch(k.place)}
+                      style={{ display:'flex', gap:10, alignItems:'flex-start', width:'100%', textAlign:'left', background:selected?.id===k.place.id?C.rustLight:'white', border:'none', borderRadius:10, padding:'0.55rem 0.6rem', marginBottom:5, cursor:'pointer', fontFamily:"'Be Vietnam Pro',sans-serif", boxShadow:'0 1px 3px rgba(26,25,22,.08)', opacity:k.offSeason?0.7:1 }}>
+                      <span aria-hidden="true" style={{ flexShrink:0, width:22, height:22, borderRadius:8, background:i===0?'#E8A020':'rgba(26,25,22,.08)', color:i===0?C.ink:C.muted, fontWeight:700, fontSize:'0.75rem', display:'flex', alignItems:'center', justifyContent:'center' }}>{i+1}</span>
+                      <span style={{ flex:1, minWidth:0 }}>
+                        <span style={{ display:'block', fontWeight:600, fontSize:'0.84rem', color:C.ink }}>{k.place.name}</span>
+                        <span style={{ display:'block', fontSize:'0.69rem', color:C.muted, marginBottom:3 }}>{k.place.area} · {k.place.cost === 0 ? m.free : `${k.place.cost.toLocaleString('vi-VN')}đ`}</span>
+                        <span style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                          {k.rating && <span style={{ fontSize:'0.62rem', padding:'0.08rem 0.45rem', borderRadius:999, fontWeight:700, background:'rgba(232,160,32,.16)', color:'#8A5A00' }}>★ {fmtAvg(k.rating.avg)} ({k.rating.n})</span>}
+                          {k.reasons.filter(r => r !== 'rated' || !k.rating).map(r => <span key={r} style={{ fontSize:'0.62rem', padding:'0.08rem 0.45rem', borderRadius:999, fontWeight:600, background:r==='editor'?'rgba(232,160,32,.2)':r==='peak'?'rgba(46,125,82,.14)':'rgba(26,25,22,.06)', color:r==='editor'?'#8A5A00':r==='peak'?'#2E7D52':C.muted }}>{whyText[r]}</span>)}
+                          {k.offSeason && <span style={{ fontSize:'0.62rem', padding:'0.08rem 0.45rem', borderRadius:999, background:'rgba(184,92,42,.12)', color:C.rust, fontWeight:600 }}>{m.whyOff}</span>}
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                </section>
+              ))}
+              <p style={{ fontSize:'0.66rem', color:C.muted, lineHeight:1.55, margin:'0.9rem 0.4rem 0' }}>{anyRated ? m.picksHowRated : m.picksHow}</p>
+            </div>
+          </aside>
+        )}
 
         {/* DETAIL PANEL */}
         {showPanel && selected && (
@@ -283,6 +341,8 @@ export default function MapPreviewScreen({ onStart, onHome }: { onStart: () => v
                 ))}
               </div>
               {selected.tip && <div style={{ fontSize:'0.76rem', color:C.muted, fontStyle:'italic' }}>💡 {selected.tip}</div>}
+              <PlaceRating placeId={selected.id} name={selected.name}/>
+              {(() => { const on = mustIds.includes(selected.id), full = !on && mustIds.length >= MAX_MUST; return <button type="button" disabled={full} aria-pressed={on} onClick={() => onToggleMust?.(selected.id)} style={{ marginTop:8, fontSize:'0.76rem', padding:'0.4rem 0.8rem', cursor:full?'not-allowed':'pointer', opacity:full?0.5:1, fontFamily:"'Be Vietnam Pro',sans-serif", background:on?C.rust:'none', color:on?'white':C.ink, border:`1px solid ${on?C.rust:C.border}` }}>{on ? t.result.inPlan : full ? t.result.planFull : t.result.addToPlan}</button> })()}
             </div>
             <button onClick={onStart}
               style={{ background:C.ink, color:C.cream, border:'none', padding:'0.7rem 1.25rem', fontSize:'0.83rem', fontFamily:"'Be Vietnam Pro',sans-serif", fontWeight:500, cursor:'pointer', flexShrink:0, alignSelf:'center' }}

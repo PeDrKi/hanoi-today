@@ -5,6 +5,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { escapeHtml } from '../utils/html'
 import { C, MARKER_COLORS } from '../styles/tokens'
+import { reducedMotion } from '../utils/motion'
 
 export default function LeafletMap({ stops }: { stops?: Pick<Stop, 'lat' | 'lng' | 'name' | 'time' | 'desc' | 'image'>[] }) {
   const t = useT()
@@ -18,7 +19,7 @@ export default function LeafletMap({ stops }: { stops?: Pick<Stop, 'lat' | 'lng'
 
     if (!mapRef.current) {
       mapRef.current = L.map(containerRef.current, {
-        center:[21.028, 105.854], zoom:14,
+        center:[21.028, 105.854], zoom:12,
         zoomControl:true, scrollWheelZoom:true,
       })
       let loaded = 0, failed = 0
@@ -44,7 +45,7 @@ export default function LeafletMap({ stops }: { stops?: Pick<Stop, 'lat' | 'lng'
       const color = MARKER_COLORS[i % MARKER_COLORS.length]
       const icon = L.divIcon({
         className:'',
-        html:`<div class="custom-pin" style="background:${color}"><span>${i+1}</span></div>`,
+        html:`<div class="pin-drop" style="animation-delay:${reducedMotion() ? 0 : 450 + i * 110}ms"><div class="custom-pin" style="background:${color}"><span>${i+1}</span></div></div>`,
         iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-30],
       })
       L.marker([stop.lat, stop.lng], { icon })
@@ -64,7 +65,10 @@ export default function LeafletMap({ stops }: { stops?: Pick<Stop, 'lat' | 'lng'
         .addTo(layers)
     }
 
-    mapRef.current.fitBounds(L.latLngBounds(latlngs), { padding:[44,44] })
+    // dolly & zoom: the camera starts wide over the city and glides in to frame the route (plain fit when motion is reduced)
+    const box = L.latLngBounds(latlngs)
+    if (reducedMotion()) mapRef.current.fitBounds(box, { padding:[44,44] })
+    else mapRef.current.flyToBounds(box, { padding:[44,44], duration:1.25, easeLinearity:0.22 })
   }, [stops])
 
   useEffect(() => { render() }, [render])

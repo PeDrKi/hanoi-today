@@ -1,4 +1,5 @@
 import PlaceImage from '../components/PlaceImage'
+import PlaceRating from '../components/PlaceRating'
 import { formatVnd, clampPeople } from '../utils/budget'
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, lazy, Suspense } from 'react'
 import { gsap, reducedMotion, EASE } from '../utils/motion'
@@ -48,9 +49,14 @@ function StopCard({ noteQuality = true, noteAllergy = true, allergies, heatTemp,
   useLayoutEffect(() => {
     if (reducedMotion() || !cardRef.current) return
     const el = cardRef.current
-    const tween = gsap.from(el, { y: 36, opacity: 0, duration: 0.6, ease: EASE, delay: Math.min(index, 3) * 0.1,
-      scrollTrigger: { trigger: el, start: 'top 94%', once: true } })
-    return () => { tween.scrollTrigger?.kill(); tween.kill() }
+    // parenting: the card arrives first; its number, photo and text lines follow it, each a beat behind
+    const q = (sel: string) => Array.from(el.querySelectorAll<HTMLElement>(sel))
+    const tl = gsap.timeline({ delay: Math.min(index, 3) * 0.1, scrollTrigger: { trigger: el, start: 'top 94%', once: true } })
+    tl.from(el, { y: 36, opacity: 0, duration: 0.6, ease: EASE })
+      .from(q('.stop-num'), { scale: 0, rotate: -35, duration: 0.5, ease: 'back.out(2.2)' }, 0.12)
+      .from(q('.stop-media'), { y: 22, opacity: 0, scale: 0.94, transformOrigin: '50% 0%', duration: 0.6, ease: EASE }, 0.14)
+      .from(q('.stop-body > :not(.stop-media)'), { y: 12, opacity: 0, duration: 0.45, stagger: 0.05, ease: EASE }, 0.26)
+    return () => { tl.scrollTrigger?.kill(); tl.kill() }
   }, [])
   const menu = stop.menu ?? []
   const menuSrc = stop.menuSrc ?? []
@@ -59,9 +65,9 @@ function StopCard({ noteQuality = true, noteAllergy = true, allergies, heatTemp,
       {stop.hiddenGem && mode==='local' && (
         <div style={{ position:'absolute', top:8, right:8, fontSize:'0.6rem', background:'#3D5C35', color:'white', padding:'0.15rem 0.5rem', fontWeight:600 }}>{r.hiddenGem}</div>
       )}
-      <div style={{ minWidth:30, height:30, borderRadius:10, flexShrink:0, background:MARKER_COLORS[index%MARKER_COLORS.length], color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'0.83rem' }}>{index+1}</div>
+      <div className="stop-num" style={{ minWidth:30, height:30, borderRadius:10, flexShrink:0, background:MARKER_COLORS[index%MARKER_COLORS.length], color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:'0.83rem' }}>{index+1}</div>
       <div className="stop-body" style={{ flex:1, minWidth:0, opacity:done?0.55:1 }}>
-        <div className="stop-media" style={{ marginBottom:8 }}><PlaceImage id={stop.id} name={stop.name} type={stop.type} area={stop.area} image={stop.image} imageCredit={stop.imageCredit} height={118}/></div>
+        <div className="stop-media" style={{ marginBottom:8 }}><PlaceImage id={stop.id} name={stop.name} type={stop.type} area={stop.area} image={stop.image} imageCredit={stop.imageCredit} height={118} parallax/></div>
         {state && state !== 'past' && <div style={{ marginBottom:4 }}><span style={{ fontSize:'0.62rem', fontWeight:700, letterSpacing:'0.06em', textTransform:'uppercase', color:state==='now'?'#fff':C.rust, background:state==='now'?C.rust:'transparent', border:state==='now'?'none':`1px solid ${C.rust}`, padding:'0.1rem 0.5rem' }}>{state==='now' ? r.nowBadge : r.nextBadge}</span></div>}
         <div style={{ fontWeight:600, fontSize:'0.9rem', marginBottom:3, textDecoration:done?'line-through':'none' }}>{stop.name}</div>
         <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:6, flexWrap:'wrap' }}>
@@ -71,6 +77,10 @@ function StopCard({ noteQuality = true, noteAllergy = true, allergies, heatTemp,
             <span style={{ fontSize:'0.67rem', color:'#3D5C35' }}>{r.localTime} {stop.displayTime}</span>
           )}
         </div>
+        {stop.must && <div style={{ display:'flex', flexWrap:'wrap', gap:6, alignItems:'center', marginBottom:6 }}>
+          <span style={{ fontSize:'0.66rem', background:C.rust, color:'white', padding:'0.15rem 0.55rem', fontWeight:600 }}>{r.mustBadge}</span>
+          {(stop.mustNotes || []).map(n => <span key={n} role="note" style={{ fontSize:'0.7rem', color:'#9A5B00' }}>{r.mustNote[n]}</span>)}
+        </div>}
         {stop.warn && <div role="note" style={{ fontSize:'0.72rem', color:'#9A5B00', background:'rgba(232,160,32,0.12)', padding:'0.25rem 0.55rem', marginBottom:6, display:'inline-block' }}>{stop.warn==='closed' ? r.warnClosed : stop.warn==='late' ? r.warnLate : r.warnHours}</div>}
         {(() => { if (!allergies?.length || (stop.type !== 'food' && stop.type !== 'cafe')) return null; const hits = allergyHits(stop, allergies); if (!hits.length && !noteAllergy) return null; return (
           <div role="note" style={{ fontSize:'0.72rem', color: hits.length ? '#9A3B00' : C.muted, background: hits.length ? 'rgba(200,70,20,0.1)' : 'rgba(0,0,0,0.04)', padding:'0.25rem 0.55rem', marginBottom:6, display:'inline-block' }}>
@@ -81,6 +91,7 @@ function StopCard({ noteQuality = true, noteAllergy = true, allergies, heatTemp,
         {stop.tip && (
           <div style={{ fontSize:'0.75rem', color:C.muted, fontStyle:'italic', marginTop:6, paddingTop:6, borderTop:`1px solid ${C.border}` }}>💡 {stop.tip}</div>
         )}
+        <PlaceRating placeId={stop.id} name={stop.name} compact/>
         {stop.badges?.length > 0 && (
           <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginTop:7 }}>
             {stop.badges.map((b,j) => { const pr = /^(TB menu|TB ~|Ước tính)/.test(b); const good = /^TB menu/.test(b); return <span key={j} style={{ fontSize:'0.68rem', padding:'0.12rem 0.5rem', fontWeight:pr?600:400, background:pr?(good?'rgba(61,92,53,.12)':'rgba(232,160,32,.16)'):'rgba(26,25,22,.05)', color:pr?(good?'#2F4A29':'#7A4A00'):C.muted }}>{b}</span> })}
@@ -444,6 +455,12 @@ export default function ResultScreen({ answers, wx, onRestart, onAdjust, shared 
             <WeatherPanel wx={wx} dateISO={result?.dateISO} limitedFitness={answers.fitness === 'limited'} compact={answers.compact}/>
             {result.startsTomorrow && (
               <div role="status" style={{ background:'rgba(232,160,32,0.12)', border:'1px solid rgba(232,160,32,0.4)', padding:'0.6rem 0.9rem', fontSize:'0.8rem', color:C.ink, marginBottom:'0.9rem' }}>🌙 {r.startsTomorrow}</div>
+            )}
+            {!!result.unmet?.length && (
+              <div role="status" style={{ background:'rgba(200,70,20,0.08)', border:'1px solid rgba(200,70,20,0.35)', padding:'0.6rem 0.9rem', fontSize:'0.8rem', color:C.ink, marginBottom:'0.9rem', lineHeight:1.6 }}>
+                <strong>{r.unmetTitle}</strong>
+                <ul style={{ margin:'0.3rem 0 0 1.1rem', padding:0 }}>{result.unmet.map(u => <li key={u.id}>{u.name}: {r.unmetReason[u.reason]}</li>)}</ul>
+              </div>
             )}
             {result.narrative && (
               <div style={{ borderLeft:`2px solid ${C.rust}`, paddingLeft:'1rem', marginBottom:'1.4rem', fontFamily:"'Playfair Display',serif", fontStyle:'italic', fontSize:'0.92rem', color:C.muted, lineHeight:1.8 }}>

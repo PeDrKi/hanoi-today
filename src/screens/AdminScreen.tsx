@@ -4,7 +4,8 @@ import type { Place, PlaceType, Review } from '../types'
 import { getPlaces, savePlaces, resetPlaces, cacheRemotePlaces } from '../data/placeStore'
 import { PLACES } from '../data/places'
 import { API_URL } from '../config'
-import { adminMe, adminReviews, adminSavePlaces, adminStats, adminAudit, adminDeleteReview, adminUploadImage, getAdminToken, setAdminToken, type AdminMe, type AdminStats, type AuditEntry } from '../utils/backend'
+import { adminMe, adminReviews, adminSavePlaces, adminStats, adminAudit, adminDeleteReview, adminUploadImage, adminClearRatings, getAdminToken, setAdminToken, type AdminMe, type AdminStats, type AuditEntry } from '../utils/backend'
+import { useRatings, fetchRatings, fmtAvg } from '../utils/ratings'
 import { resizeToBlob, blobToDataUrl, normalizeImageUrl } from '../utils/imageTools'
 import { INTERVIEWS, B1_SUMMARY } from '../data/interviewData'
 import { susScore, susBand, pearson, CTX_KEYS, CTX_VI } from '../utils/sus'
@@ -168,6 +169,12 @@ function OverviewModule({ places, reviews, stats }: { places: Place[]; reviews: 
 function PlacesModule({ places, setPlaces, canEdit }: { places: Place[]; setPlaces: (p: Place[]) => void; canEdit: boolean }) {
   const [search,  setSearch]  = useState('')
   const [filter,  setFilter]  = useState('all')
+  const { aggs } = useRatings()
+  useEffect(() => { void fetchRatings(true) }, [])
+  const clearStars = async (p: Place) => {
+    if (!window.confirm(`Xoá ${aggs[p.id]?.n ?? 0} lượt chấm sao của "${p.name}"? Không thể hoàn tác.`)) return
+    try { await adminClearRatings(getAdminToken(), p.id); await fetchRatings(true) } catch { window.alert('Không xoá được. Kiểm tra mạng hoặc quyền Biên tập.') }
+  }
   const [editing, setEditing] = useState<PlaceDraft | null>(null)
   const [isNew,   setIsNew]   = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -230,7 +237,7 @@ function PlacesModule({ places, setPlaces, canEdit }: { places: Place[]; setPlac
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'0.82rem' }}>
           <thead>
             <tr style={{ background:A.cream, borderBottom:`1px solid ${A.border}` }}>
-              {['ID','Tên','Khu vực','Loại','Chi phí','Thao tác'].map(h => (
+              {['ID','Tên','Khu vực','Loại','Chi phí','Đánh giá','Thao tác'].map(h => (
                 <th key={h} style={{ padding:'0.65rem 0.8rem', textAlign:'left', fontWeight:600, fontSize:'0.72rem', color:A.muted, whiteSpace:'nowrap' }}>{h}</th>
               ))}
             </tr>
@@ -243,8 +250,12 @@ function PlacesModule({ places, setPlaces, canEdit }: { places: Place[]; setPlac
                 <td style={{ padding:'0.6rem 0.8rem', color:A.muted }}>{place.area}</td>
                 <td style={{ padding:'0.6rem 0.8rem' }}><span style={{ fontSize:'0.68rem', padding:'0.15rem 0.5rem', background:A.rustLight, color:A.rust }}>{place.type}</span></td>
                 <td style={{ padding:'0.6rem 0.8rem', color:place.cost===0?A.green:A.ink }}>{place.cost===0?'Miễn phí':`${place.cost.toLocaleString('vi-VN')}đ`}</td>
+                <td style={{ padding:'0.6rem 0.8rem', whiteSpace:'nowrap', fontSize:'0.78rem' }}>
+                  {aggs[place.id]?.n > 0 ? <><b>★ {fmtAvg(aggs[place.id].avg)}</b> <span style={{ color:A.muted }}>({aggs[place.id].n})</span></> : <span style={{ color:A.muted }}>—</span>}
+                </td>
                 <td style={{ padding:'0.6rem 0.8rem' }}>
                   <div style={{ display:'flex', gap:6 }}>
+                    {canEdit && API_URL && aggs[place.id]?.n > 0 && <button onClick={() => void clearStars(place)} title="Xoá toàn bộ lượt chấm sao của địa điểm này (khi bị spam)" style={{ background:A.cream, color:A.muted, border:`1px solid ${A.border}`, padding:'0.3rem 0.6rem', fontSize:'0.72rem', cursor:'pointer' }}>Xoá sao</button>}
                     {canEdit && <button onClick={() => { setEditing({...place}); setIsNew(false) }} style={{ background:A.blueL, color:A.blue, border:'none', padding:'0.3rem 0.6rem', fontSize:'0.72rem', cursor:'pointer' }}>Sửa</button>}
                     {canEdit && <button onClick={() => setConfirm(place.id)} style={{ background:A.redL, color:A.red, border:'none', padding:'0.3rem 0.6rem', fontSize:'0.72rem', cursor:'pointer' }}>Xóa</button>}
                   </div>
@@ -269,8 +280,8 @@ function PlacesModule({ places, setPlaces, canEdit }: { places: Place[]; setPlac
       )}
 
       {editing && (
-        <div role="dialog" aria-modal="true" aria-label="Biểu mẫu địa điểm" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'flex-start', justifyContent:'center', zIndex:9999, overflowY:'auto', padding:'2rem' }}>
-          <div style={{ background:'white', width:'100%', maxWidth:600, border:`1px solid ${A.border}` }}>
+        <div className="sheet-backdrop" role="dialog" aria-modal="true" aria-label="Biểu mẫu địa điểm" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'flex-start', justifyContent:'center', zIndex:9999, overflowY:'auto', padding:'2rem' }}>
+          <div className="sheet" style={{ background:'white', width:'100%', maxWidth:600, border:`1px solid ${A.border}` }}>
             <div style={{ padding:'1.1rem 1.5rem', borderBottom:`1px solid ${A.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <h3 style={{ fontFamily:"'Playfair Display',serif", fontSize:'1.1rem' }}>{isNew ? '+ Thêm địa điểm' : `Sửa: ${editing.name}`}</h3>
               <button onClick={() => setEditing(null)} aria-label="Đóng" style={{ background:'none', border:'none', cursor:'pointer', fontSize:'1.2rem', color:A.muted }}>✕</button>
@@ -380,6 +391,10 @@ function PlaceForm({ place, isNew, onSave, onClose }: { place: PlaceDraft; isNew
           </div>
           <div><label htmlFor="pf-6" style={lbl}>Chi phí (VND, 0=miễn phí)</label><input id="pf-6" style={inp} type="number" value={form.cost} onChange={e => set('cost',+e.target.value)}/></div>
           <div><label htmlFor="pf-7" style={lbl}>Thời gian (phút)</label><input id="pf-7" style={inp} type="number" value={form.duration} onChange={e => set('duration',+e.target.value)}/></div>
+          <div style={{ display:'flex', alignItems:'center', gap:8, paddingTop:18 }}>
+            <input type="checkbox" id="featured" checked={!!form.featured} onChange={e => set('featured',e.target.checked)}/>
+            <label htmlFor="featured" style={{ fontSize:'0.83rem', cursor:'pointer' }}>⭐ Nổi bật (đáng đến nhất)</label>
+          </div>
           <div style={{ display:'flex', alignItems:'center', gap:8, paddingTop:18 }}>
             <input type="checkbox" id="indoor" checked={form.indoor} onChange={e => set('indoor',e.target.checked)}/>
             <label htmlFor="indoor" style={{ fontSize:'0.83rem', cursor:'pointer' }}>Địa điểm trong nhà</label>

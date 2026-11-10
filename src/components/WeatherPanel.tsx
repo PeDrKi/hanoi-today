@@ -49,6 +49,15 @@ export default function WeatherPanel({ wx, dateISO, limitedFitness, compact }: {
     return () => ctx.revert()
   }, [loaded, days.length])
 
+  // dimensionality: picking another day turns the hero and the packing card over like a card, hinged at the top
+  const firstDay = useRef(true)
+  useEffect(() => {
+    if (firstDay.current) { firstDay.current = false; return }
+    if (reducedMotion() || !root.current) return
+    const t = gsap.fromTo(root.current.querySelectorAll('.wp-hero, .wp-pack'), { rotateX: -65, opacity: 0.25, transformPerspective: 760, transformOrigin: '50% 0%' }, { rotateX: 0, opacity: 1, duration: 0.6, ease: EASE, stagger: 0.08, clearProps: 'transform,opacity' })
+    return () => { t.kill() }
+  }, [sel])
+
   if (!loaded) return null
   if (!day) return <div style={{ fontSize:'0.78rem', color:'#6b665a', marginBottom:'1rem', padding:'0.7rem 0.9rem', background:'#fff', border:'1px solid #E3DCCB', borderRadius:12 }}>{en ? 'Forecast unavailable (offline). Check the weather before you go.' : '📴 Chưa có dự báo (đang mất mạng). Hãy kiểm tra thời tiết trước khi đi.'}</div>
 
@@ -93,7 +102,7 @@ export default function WeatherPanel({ wx, dateISO, limitedFitness, compact }: {
       </div>
 
       {/* what to wear */}
-      <div style={{ background:'#fff', border:'1px solid #E3DCCB', borderRadius:16, padding:'1rem 1.1rem' }}>
+      <div className="wp-pack" style={{ background:'#fff', border:'1px solid #E3DCCB', borderRadius:16, padding:'1rem 1.1rem' }}>
         <div style={{ display:'flex', gap:10, alignItems:'flex-start', background:'rgba(232,160,32,0.12)', borderRadius:12, padding:'0.7rem 0.85rem', marginBottom:'0.85rem' }}>
           <span style={{ ...EMOJI, fontSize:'1.5rem', lineHeight:1.2 }} aria-hidden="true">🧥</span>
           <div><div style={{ fontSize:'0.68rem', letterSpacing:'0.08em', textTransform:'uppercase', color:'#9A5B00', fontWeight:700 }}>{en ? 'What to wear' : 'Nên mặc'}</div><div style={{ fontSize:'0.88rem', lineHeight:1.5 }}>{adv.outfit}</div></div>
@@ -101,7 +110,7 @@ export default function WeatherPanel({ wx, dateISO, limitedFitness, compact }: {
         <div style={{ fontSize:'0.68rem', letterSpacing:'0.08em', textTransform:'uppercase', color:'#6b665a', fontWeight:700, marginBottom:8 }}>{en ? 'Pack list' : 'Nên mang theo'}</div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))', gap:8 }}>
           {shown.map((it, i) => (
-            <div key={i} className="wp-tip" style={{ display:'flex', gap:10, alignItems:'flex-start', background:'#FAF7F0', borderRadius:12, padding:'0.6rem 0.75rem', fontSize:'0.8rem', lineHeight:1.5 }}>
+            <div key={i} className={i >= 4 ? 'wp-tip fold-in' : 'wp-tip'} style={{ display:'flex', gap:10, alignItems:'flex-start', background:'#FAF7F0', borderRadius:12, padding:'0.6rem 0.75rem', fontSize:'0.8rem', lineHeight:1.5 }}>
               <span style={{ ...EMOJI, fontSize:'1.25rem', lineHeight:1.2, flexShrink:0 }} aria-hidden="true">{it.ic}</span><span>{it.text}</span>
             </div>))}
         </div>

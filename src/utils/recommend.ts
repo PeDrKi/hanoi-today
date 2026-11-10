@@ -7,16 +7,20 @@ import { allergyHits } from '../data/health'
 import { isStrenuous } from '../data/fitness'
 import { wxLevel, weatherDelta, type WxInput } from './weatherRules'
 import { RAINY_CODES }            from '../data/constants'
-import type { Answers, Place, Plan, Stop, TimedPlace, LatLng, Weather, TimeId, Focus, Mood, Group, GroupAnswer, Mode, Warn, Why } from '../types'
+import type { Answers, Place, Plan, Stop, TimedPlace, LatLng, Weather, TimeId, Focus, Mood, Group, GroupAnswer, Mode, Warn, Why, MustNote, Unmet } from '../types'
 
 export interface Start { date: Date; startHour: number; nextDay: boolean }
 export interface Scored { place: Place; score: number }
 interface Cfg { target: number; minutes: number; radius: number }
-interface PlanCtx { origin: LatLng | null; scored: Scored[]; all: Place[]; date: Date; startHour: number; wxCode: number; mood: Mood; mode: Mode; timeId: TimeId; group: GroupAnswer; budgetVal: number; month: number; focus: Focus }
+interface PlanCtx { origin: LatLng | null; scored: Scored[]; all: Place[]; date: Date; startHour: number; wxCode: number; mood: Mood; mode: Mode; timeId: TimeId; group: GroupAnswer; budgetVal: number; month: number; focus: Focus ; must: Place[]; mustNotes: Map<string, MustNote[]> }
 type Located = LatLng
 const isDef = <T,>(x: T | undefined | null): x is T => x != null
 
 // target = max stops, minutes = total time budget (visits + travel), radius = max km from the anchor stop
+/** Most places a visitor can pin to the plan. */
+export const MAX_MUST = 3
+export const MUST_SCORE = 1000
+
 export const STOPS_COUNT: Record<string, Cfg> = {
   '2h':  { target: 3, minutes: 130, radius: 2 },
   half:  { target: 4, minutes: 250, radius: 3.5 },
@@ -116,15 +120,18 @@ export function validOrigin(loc?: Partial<LatLng> | null): LatLng | null {
   return { lat, lng }
 }
 
-export function selectPlaces(scored: Scored[], timeId: string, focus: Focus = 'all', origin: LatLng | null = null): Place[] {
+export function selectPlaces(scored: Scored[], timeId: string, focus: Focus = 'all', origin: LatLng | null = null, mustPlaces: Place[] = []): Place[] {
   const cfg = STOPS_COUNT[timeId] || STOPS_COUNT.half
   const sorted = [...scored].sort((a, b) => b.score - a.score)
   const selected: Place[] = []
   const usedTypes: Record<string, number> = {}
   const usedAreas: Record<string, number> = {}
   let minutes = 0
-  let anchor: Place | undefined = sorted[0]?.place
-  if (focus !== 'all' && sorted.length > 1) {
+  // places the visitor asked for come first and the rest of the plan is built around them (a plan can only hold `target` stops)
+  const musts = mustPlaces.slice(0, cfg.target)
+  let anchor: Place | undefined = musts[0] ?? sorted[0]?.place
+  if (origin && musts.length > 1) anchor = musts.reduce((m, c) => distanceKm(origin, c) < distanceKm(origin, m) ? c : m, musts[0])
+  if (!musts.length && focus !== 'all' && sorted.length > 1) {
     // single-type pools are small and spread out: anchor on the densest cluster rather than the single top scorer
     let best = -Infinity
     for (const c of sorted) {
@@ -135,7 +142,7 @@ export function selectPlaces(scored: Scored[], timeId: string, focus: Focus = 'a
     }
   }
 
-  if (origin && sorted.length) {
+  if (!musts.length && origin && sorted.length) {
     // start near the user: trade a little score for proximity (6 points per km)
     anchor = sorted.reduce((m, c) => (c.score - 6 * distanceKm(origin, c.place)) > (m.score - 6 * distanceKm(origin, m.place)) ? c : m, sorted[0]).place
   }
@@ -146,7 +153,7 @@ export function selectPlaces(scored: Scored[], timeId: string, focus: Focus = 'a
       if (focus === 'all' && (usedTypes[place.type] || 0) >= 2) return   // a food-only plan is allowed to be all food
       if (focus === 'all' && (usedAreas[place.area] || 0) >= 3) return
     }
-    if (anchor && distanceKm(anchor, place) > cfg.radius) return
+    if (musts.length ? !musts.some(m => distanceKm(m, place) <= cfg.radius) : (anchor && distanceKm(anchor, place) > cfg.radius)) return
     if (selected.length > 0 && minutes + place.duration + 10 > cfg.minutes) return
     selected.push(place)
     minutes += place.duration + 10
@@ -154,7 +161,8 @@ export function selectPlaces(scored: Scored[], timeId: string, focus: Focus = 'a
     usedAreas[place.area] = (usedAreas[place.area] || 0) + 1
   }
 
-  if (anchor) tryAdd(anchor, false)
+  for (const m of musts) { selected.push(m); minutes += m.duration + 10; usedTypes[m.type] = (usedTypes[m.type] || 0) + 1; usedAreas[m.area] = (usedAreas[m.area] || 0) + 1 }
+  if (anchor && !musts.length) tryAdd(anchor, false)
   for (const item of sorted) { if (selected.length >= cfg.target) break; tryAdd(item.place, true) }
   for (const item of sorted) { if (selected.length >= cfg.target) break; tryAdd(item.place, false) }
   return selected
@@ -372,7 +380,25 @@ function prepare({ answers, wx, start, places, exclude = [] }: { answers: Answer
          - (allergyHits(place, answers.allergies).length ? 30 : 0),
   }))
   const origin = validOrigin(answers.loc)
-  return { origin, scored, all: placesWithMode, date, startHour, wxCode, mood, mode, timeId, group, budgetVal, month, focus }
+
+  // places the visitor picked: kept even when a filter above would have dropped them (budget, weather, mood …) — they get a note instead.
+  // Hiding or swapping a pinned place away is an explicit "no", so those are honoured.
+  const dropped = new Set([...exclude, ...(answers.hidden || [])])
+  const must = [...new Set(answers.must || [])].filter(id => !dropped.has(id)).slice(0, MAX_MUST)
+    .map(id => placesWithMode.find(p => p.id === id)).filter(isDef).filter(p => p.type !== 'lodging')
+  const lvl = wxLevel({ code: wxCode, precip: wx?.precip, visibility: wx?.visibility })
+  const mustNotes = new Map<string, MustNote[]>()
+  for (const p of must) {
+    const n: MustNote[] = []
+    if (p.cost > getBudgetAmount(budgetVal) * 0.6) n.push('budget')
+    if ((lvl === 'severe' && !p.indoor) || (lvl === 'rain' && !p.indoor && (p.cost > 0 || p.type === 'nature'))) n.push('weather')
+    if (p.bestMonths?.length && !p.bestMonths.includes(month)) n.push('offseason')
+    if (n.length) mustNotes.set(p.id, n)
+    const at = scored.findIndex(c => c.place.id === p.id)
+    if (at >= 0) scored[at] = { place: p, score: scored[at].score + MUST_SCORE }
+    else scored.push({ place: p, score: MUST_SCORE })
+  }
+  return { origin, scored, all: placesWithMode, date, startHour, wxCode, mood, mode, timeId, group, budgetVal, month, focus, must, mustNotes }
 }
 
 /** yyyy-mm-dd in the user's own time zone (toISOString would use UTC and shift the day before 07:00 in Vietnam). */
@@ -394,8 +420,10 @@ export function reasonsFor(place: Place & { startAt?: number }, ctx: Pick<PlanCt
   return why.slice(0, 3)
 }
 
-function toResult(ctx: PlanCtx, nextDay: boolean, withTime: TimedPlace[]): Plan {
+function toResult(ctx: PlanCtx, nextDay: boolean, withTime: TimedPlace[], unmet?: Unmet[]): Plan {
+  const pinned = new Set(ctx.must.map(p => p.id))
   return {
+    ...(unmet?.length ? { unmet } : {}),
     narrative: generateNarrative(ctx.mood, ctx.wxCode, ctx.focus),
     mode: ctx.mode,
     startsTomorrow: nextDay,
@@ -405,7 +433,8 @@ function toResult(ctx: PlanCtx, nextDay: boolean, withTime: TimedPlace[]): Plan 
       id: p.id, name: p.name, time: p.time, startAt: p.startAt, desc: p.desc, badges: p.badges,
       lat: p.lat, lng: p.lng, tip: p.tip, area: p.area, cost: p.cost, type: p.type, indoor: p.indoor,
       localScore: p.localScore, hiddenGem: p.hiddenGem, displayTime: p.displayTime, warn: p.warn || null,
-      why: reasonsFor(p, ctx),
+      why: pinned.has(p.id) ? [{ k:'must' }, ...reasonsFor(p, ctx)].slice(0, 3) : reasonsFor(p, ctx),
+      ...(pinned.has(p.id) ? { must: true, ...(ctx.mustNotes.get(p.id) ? { mustNotes: ctx.mustNotes.get(p.id) } : {}) } : {}),
       distKm: ctx.origin ? Math.round(distanceKm(ctx.origin, p) * 10) / 10 : null,
       image: p.image || p.img || undefined, imageCredit: p.imageCredit || p.imgCredit || undefined, hours: p.hours, address: p.address, menu: p.menu || null, menuSrc: p.menuSrc || null, menuChecked: p.menuChecked || '', menuNote: p.menuNote || '', priceQuality: p.priceQuality || null,
     })),
@@ -414,8 +443,36 @@ function toResult(ctx: PlanCtx, nextDay: boolean, withTime: TimedPlace[]): Plan 
 
 function plan({ answers, wx, start, places, exclude }: { answers: Answers; wx: Weather | null; start: Start; places: Place[]; exclude?: string[] }): Plan {
   const ctx = prepare({ answers, wx, start, places, exclude })
-  const selected = selectPlaces(ctx.scored, ctx.timeId, ctx.focus, ctx.origin)
-  return toResult(ctx, start.nextDay, scheduleStops(selected, ctx.startHour, ctx.date, ctx.origin))
+  // build a plan around `musts`; if a pick does not fit the day, drop the lowest-ranked filler and try again, keeping the attempt that leaves the fewest picks out
+  const attempt = (musts: Place[], pool: Scored[]) => {
+    const missing = (sel: Place[], t: TimedPlace[]) => sel.filter(p => musts.some(m => m.id === p.id) && !t.some(x => x.id === p.id)).length
+    const sel0 = selectPlaces(pool, ctx.timeId, ctx.focus, ctx.origin, musts)
+    const t0 = scheduleStops(sel0, ctx.startHour, ctx.date, ctx.origin)
+    let best = { selected: sel0, timed: t0, miss: missing(sel0, t0) }
+    for (let cur = sel0; best.miss > 0; ) {
+      let k = -1
+      for (let i = cur.length - 1; i >= 0; i--) if (!musts.some(m => m.id === cur[i].id)) { k = i; break }
+      if (k < 0) break
+      cur = cur.filter((_, i) => i !== k)
+      const t = scheduleStops(cur, ctx.startHour, ctx.date, ctx.origin), miss = missing(cur, t)
+      if (miss < best.miss) best = { selected: cur, timed: t, miss }
+    }
+    return best
+  }
+  const first = attempt(ctx.must, ctx.scored)
+  let { selected, timed } = first
+  if (first.miss > 0) {
+    // a pick that can never be scheduled (closed, or outside its hours) must not drag the rest of the plan around it:
+    // plan again without it and report it instead
+    const stuck = new Set(ctx.must.filter(m => first.selected.some(p => p.id === m.id) && !first.timed.some(t => t.id === m.id)).map(m => m.id))
+    const again = attempt(ctx.must.filter(m => !stuck.has(m.id)), ctx.scored.filter(c => !stuck.has(c.place.id)))
+    if (again.miss === 0) ({ selected, timed } = again)
+  }
+  const unmet: Unmet[] = ctx.must.filter(m => !timed.some(t => t.id === m.id)).map(m => ({
+    id: m.id, name: m.name,
+    reason: !first.selected.some(p => p.id === m.id) ? 'limit' as const : [9, 12, 17].every(h => !isOpen(m.id, ctx.date, h)) ? 'closed' as const : 'time' as const,
+  }))
+  return toResult(ctx, start.nextDay, timed, unmet)
 }
 
 function startFor(_answers: Answers, result: Plan, _now?: Date): Start {
@@ -472,5 +529,5 @@ export function moveStop({ answers, wx, result, stopId, dir, places = getPlaces(
   const start = startFor(answers, result)
   const ctx = prepare({ answers, wx, start, places })
   const order = ids.map(id => ctx.all.find(p => p.id === id)).filter(isDef)
-  return toResult(ctx, start.nextDay, scheduleInOrder(order, ctx.startHour, ctx.date))
+  return toResult(ctx, start.nextDay, scheduleInOrder(order, ctx.startHour, ctx.date), result.unmet)
 }

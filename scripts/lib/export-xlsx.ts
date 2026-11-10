@@ -14,7 +14,7 @@ export function fillWorkbook(wb: Workbook, d: Dataset): void {
     set(r, 'Loại', p.type); set(r, 'Tâm trạng', p.moods.join(', ')); set(r, 'Nhóm đi cùng', p.groups.join(', ')); set(r, 'Trong nhà', p.indoor ? 'Có' : 'Không')
     set(r, 'Thời điểm', p.timeOfDay.join(', ')); set(r, 'Thời lượng', p.duration); set(r, 'Chi phí', p.cost); set(r, 'Mô tả', p.desc)
     set(r, 'Nhãn', p.badges.join(', ')); set(r, 'Mẹo', p.tip); set(r, 'Giờ mở cửa', p.hours); set(r, 'Ngày nghỉ', p.closedNote)
-    set(r, 'Địa chỉ', p.address); set(r, 'Ghi chú', p.note)
+    set(r, 'Địa chỉ', p.address); set(r, 'Ghi chú', p.note); set(r, 'Nổi bật', p.featured ? 'Có' : undefined)
     if (sc?.days) set(r, 'Chỉ mở các thứ', sc.days.map(x => DAY_NAMES[x]).join(', '))
     set(r, 'Giờ bắt đầu sớm nhất', sc?.openHour); set(r, 'Giờ cuối được vào', sc?.closeHour)
     set(r, 'Đi bộ nhiều', d.strenuous.includes(p.id) ? 'Có' : 'Không')

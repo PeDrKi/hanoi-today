@@ -86,6 +86,7 @@ export function parseWorkbook(wb: Workbook): ParseResult {
     const hours = get(r, 'Giờ mở cửa'); if (hours) { if (HOURS_RE.test(hours)) p.hours = hours.replace(/\s+/g, ''); else bad(`Giờ mở cửa "${hours}" sai dạng (HH:MM–HH:MM hoặc 24/24)`) } else warnings.push(`${at}: chưa có Giờ mở cửa`)
     const opt = (k: keyof RawPlace, header: string) => { const v = get(r, header); if (v) (p as unknown as Record<string, string>)[k as string] = v }
     opt('closedNote', 'Ngày nghỉ'); opt('address', 'Địa chỉ'); opt('note', 'Ghi chú'); opt('image', 'Ảnh'); opt('imageCredit', 'Nguồn / tác giả ảnh')
+    const feat = get(r, 'Nổi bật'); if (yes(feat)) p.featured = true; else if (feat && !no(feat)) warnings.push(`${at}: Nổi bật "${feat}" không rõ nghĩa (dùng Có / Không) — bỏ qua`)
     ds.places.push(p)
 
     // schedule

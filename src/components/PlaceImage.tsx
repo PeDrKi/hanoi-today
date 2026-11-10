@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { gsap, reducedMotion } from '../utils/motion'
 import type { PlaceType } from '../types'
 
 const LOOK: Record<PlaceType, { a: string; b: string; icon: string }> = {
@@ -16,18 +17,29 @@ export interface PlaceImageProps {
   id: string; name: string; type: PlaceType; area?: string
   image?: string; imageCredit?: string
   height?: number; radius?: number; credit?: boolean; coverOnly?: boolean
+  /** the photo drifts a little against its frame while the page scrolls (parallax) */
+  parallax?: boolean
 }
 
 /** Photo when we have one (and it loads); otherwise a drawn cover in the colour of the place type. */
-export default function PlaceImage({ id, name, type, area, image, imageCredit, height = 120, radius = 12, credit = true }: PlaceImageProps) {
+export default function PlaceImage({ id, name, type, area, image, imageCredit, height = 120, radius = 12, credit = true, parallax = false }: PlaceImageProps) {
   const [failed, setFailed] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const box = useRef<HTMLDivElement>(null), img = useRef<HTMLImageElement>(null)
   const look = LOOK[type] || LOOK.attraction
   const h = hash(id)
   const showPhoto = !!image && !failed
+  // an image already in the cache can finish before React attaches onLoad; a timer covers a stalled event so it can never stay hidden
+  useEffect(() => { if (!showPhoto) return; setLoaded(false); if (img.current?.complete && img.current.naturalWidth) setLoaded(true); const t = window.setTimeout(() => setLoaded(true), 2500); return () => window.clearTimeout(t) }, [image, showPhoto])
+  useLayoutEffect(() => {
+    if (!parallax || !showPhoto || reducedMotion() || !box.current || !img.current) return
+    const tween = gsap.fromTo(img.current, { yPercent: -7, scale: 1.16 }, { yPercent: 7, scale: 1.16, ease: 'none', scrollTrigger: { trigger: box.current, start: 'top bottom', end: 'bottom top', scrub: 0.6 } })
+    return () => { tween.scrollTrigger?.kill(); tween.kill() }
+  }, [parallax, showPhoto, image])
   return (
-    <div style={{ position: 'relative', height, borderRadius: radius, overflow: 'hidden', background: `linear-gradient(135deg,${look.a},${look.b})`, flexShrink: 0 }}>
+    <div ref={box} style={{ position: 'relative', height, borderRadius: radius, overflow: 'hidden', background: `linear-gradient(135deg,${look.a},${look.b})`, flexShrink: 0 }}>
       {showPhoto ? (
-        <img src={image} alt={name} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)}
+        <img ref={img} className={loaded ? 'ph-img ph-on' : 'ph-img'} src={image} alt={name} loading="lazy" decoding="async" referrerPolicy="no-referrer" onLoad={() => setLoaded(true)} onError={() => setFailed(true)}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
       ) : (
         <>

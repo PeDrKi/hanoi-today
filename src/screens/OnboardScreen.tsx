@@ -1,7 +1,8 @@
 import { useState, useRef, useLayoutEffect } from 'react'
-import { gsap, reducedMotion, EASE } from '../utils/motion'
+import { gsap, reducedMotion, EASE, morphAndReveal } from '../utils/motion'
 import { Grain, StepBar,
          BtnPrimary, BtnSecondary } from '../components/ui'
+import MustPicker from '../components/MustPicker'
 import LangToggle                from '../components/LangToggle'
 import { C }                     from '../styles/tokens'
 import { useT }                  from '../i18n'
@@ -101,14 +102,14 @@ export default function OnboardScreen({ onDone, initial }: { onDone: (a: Answers
 
   const canNext = [true, true, !!ans.mood, true, !!ans.time, !!ans.group, true]
   const LAST    = canNext.length - 1
-  const finish  = () => {
+  const finish  = (btn?: HTMLElement | null) => {
     const out = { ...ans } as Answers
     if (day === 1) out.dayOffset = 1
     if (hr !== 'now') out.startHour = +hr
     else if (day === 1) out.startHour = 8
-    onDone(out)
+    morphAndReveal(btn ?? null, C.cream, () => onDone(out))     // button → circle → circle grows over the screen, then the plan appears
   }
-  const next    = () => step < LAST ? setStep(s => s+1) : finish()
+  const next    = (e?: React.MouseEvent<HTMLButtonElement>) => step < LAST ? setStep(s => s+1) : finish(e?.currentTarget)
   const back    = () => setStep(s => s-1)
 
   const { lang: curLang } = useLang()
@@ -143,7 +144,8 @@ export default function OnboardScreen({ onDone, initial }: { onDone: (a: Answers
     {
       q: ob.stepFocus, hint: ob.hintFocus,
       body: (
-        <div role="radiogroup" style={{ display:'grid', gap:9, marginBottom:'1.75rem' }}>
+        <>
+        <div role="radiogroup" style={{ display:'grid', gap:9, marginBottom:'0.5rem' }}>
           {[
             { id:'all',  icon:'🗺️', label:ob.focusAll,  desc:ob.focusAllDesc },
             { id:'food', icon:'🍜', label:ob.focusFood, desc:ob.focusFoodDesc },
@@ -153,6 +155,8 @@ export default function OnboardScreen({ onDone, initial }: { onDone: (a: Answers
               selected={ans.focus===f.id} onSelect={() => setAns(a => ({...a, focus:f.id as Focus}))}/>
           ))}
         </div>
+        <div style={{ marginBottom:'1.5rem' }}><MustPicker value={ans.must || []} tx={ob} onChange={ids => setAns(a => { const n = { ...a }; if (ids.length) n.must = ids; else delete n.must; return n })}/></div>
+        </>
       ),
     },
     {

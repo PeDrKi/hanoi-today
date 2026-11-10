@@ -48,3 +48,13 @@ CREATE TABLE IF NOT EXISTS images (
   bytes      INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
+
+-- One 1–5 star rating per anonymous device per place (a visitor can change it; no account, no personal data).
+CREATE TABLE IF NOT EXISTS place_ratings (
+  place_id   TEXT NOT NULL,
+  device     TEXT NOT NULL,
+  stars      INTEGER NOT NULL CHECK (stars BETWEEN 1 AND 5),
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (place_id, device)
+);
+CREATE INDEX IF NOT EXISTS idx_place_ratings_place ON place_ratings (place_id);

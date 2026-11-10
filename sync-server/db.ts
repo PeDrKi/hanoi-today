@@ -29,6 +29,9 @@ export interface Api {
   putImage(id: string, mime: string, bytes: Uint8Array): Promise<'ok' | 'full'>
   getImage(id: string): Promise<{ mime: string; bytes: Uint8Array } | null>
   deleteImage(id: string): Promise<boolean>
+  ratePlace(placeId: string, device: string, stars: number): Promise<'ok' | 'full'>
+  placeRatings(): Promise<Record<string, { avg: number; n: number }>>
+  deletePlaceRatings(placeId: string): Promise<number>
   /** Count one hit for `key` in the current time window; false when the limit is exceeded. */
   hit(key: string, limit: number, windowMs: number): Promise<boolean>
 }
@@ -39,6 +42,7 @@ export interface AuditEntry { id: number; at: number; actor: string; action: str
 export const SYNC_TTL_MS = 365 * 24 * 3600 * 1000
 export const MAX_REVIEWS = 50000
 export const MAX_IMAGES = 600
+export const MAX_PLACE_RATINGS = 200000
 
 function toB64(b: Uint8Array): string { let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s) }
 function fromB64(s: string): Uint8Array { const bin = atob(s); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out }
@@ -124,6 +128,26 @@ export function d1Api(db: D1Like, now: () => number = Date.now): Api {
     async deleteImage(id) {
       const r = await db.prepare('DELETE FROM images WHERE id = ?').bind(id).run()
       return (r.meta.changes ?? 0) === 1
+    },
+    async ratePlace(placeId, device, stars) {
+      const have = await db.prepare('SELECT 1 AS x FROM place_ratings WHERE place_id = ? AND device = ?').bind(placeId, device).first()
+      if (!have) {
+        const n = await db.prepare('SELECT COUNT(*) AS n FROM place_ratings').first<{ n: number }>()
+        if ((n?.n ?? 0) >= MAX_PLACE_RATINGS) return 'full'
+      }
+      await db.prepare('INSERT INTO place_ratings (place_id, device, stars, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(place_id, device) DO UPDATE SET stars = excluded.stars, updated_at = excluded.updated_at')
+        .bind(placeId, device, stars, now()).run()
+      return 'ok'
+    },
+    async placeRatings() {
+      const { results } = await db.prepare('SELECT place_id, AVG(stars) AS avg, COUNT(*) AS n FROM place_ratings GROUP BY place_id').all<{ place_id: string; avg: number; n: number }>()
+      const out: Record<string, { avg: number; n: number }> = {}
+      for (const r of results) out[r.place_id] = { avg: Math.round(r.avg * 100) / 100, n: r.n }
+      return out
+    },
+    async deletePlaceRatings(placeId) {
+      const r = await db.prepare('DELETE FROM place_ratings WHERE place_id = ?').bind(placeId).run()
+      return r.meta.changes ?? 0
     },
     async listReviews(limit) {
       const { results } = await db.prepare('SELECT id, created_at, json FROM reviews ORDER BY id DESC LIMIT ?').bind(limit).all<{ id: number; created_at: number; json: string }>()

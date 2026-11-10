@@ -72,3 +72,10 @@ export async function adminUploadImage(token: string, placeId: string, blob: Blo
   if (!r.ok) throw new Error('http ' + r.status)
   return `${API_URL}/v1/img/${encodeURIComponent(placeId)}?v=${Date.now()}`
 }
+
+/** Remove every star rating of one place (spam / brigading). Returns how many were removed. */
+export async function adminClearRatings(token: string, placeId: string): Promise<number> {
+  const r = await fetch(API_URL + '/v1/admin/ratings/' + encodeURIComponent(placeId), { method: 'DELETE', headers: auth(token) })
+  if (!r.ok) throw new Error('http ' + r.status)
+  return ((await r.json()) as { removed?: number }).removed ?? 0
+}

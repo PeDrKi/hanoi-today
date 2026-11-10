@@ -2,7 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import WelcomeScreen    from './screens/WelcomeScreen'
 import { decodePlan }   from './utils/share'
 import { inferAnswers } from './utils/infer'
-import { validOrigin }  from './utils/recommend'
+import { validOrigin, MAX_MUST } from './utils/recommend'
 const MapPreviewScreen = lazy(() => import('./screens/MapPreviewScreen'))
 const ExploreScreen = lazy(() => import('./screens/ExploreScreen'))
 import OnboardScreen    from './screens/OnboardScreen'
@@ -13,6 +13,7 @@ import WeatherBadge     from './components/WeatherBadge'
 import Disclaimer       from './components/Disclaimer'
 import { WX_MAP }       from './data/constants'
 import { startAutoSync } from './utils/sync'
+import { reducedMotion } from './utils/motion'
 import { refreshRemotePlaces } from './data/placeStore'
 import { ALLERGENS } from './data/health'
 import { loadSavedPlan } from './utils/savedPlan'
@@ -63,6 +64,14 @@ export default function App() {
   useEffect(() => { saveSession(page, answers) }, [page, answers])
   useEffect(() => startAutoSync(), [])
   useEffect(() => { const c = document.body.classList; c.toggle('bg-hero', page === 'welcome'); c.toggle('bg-soft', page === 'onboard'); c.toggle('bg-faint', page === 'result' || page === 'mine'); c.toggle('bg-none', page === 'admin' || page === 'map-preview') }, [page])
+  // parallax: on the welcome screen the skyline drifts a little against the pointer (mouse only; off for touch and reduced motion)
+  useEffect(() => {
+    if (page !== 'welcome' || reducedMotion() || !window.matchMedia?.('(pointer:fine)').matches) return
+    const root = document.documentElement; let raf = 0
+    const move = (e: PointerEvent) => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { root.style.setProperty('--mx', String((e.clientX / window.innerWidth - 0.5) * 2)); root.style.setProperty('--my', String((e.clientY / window.innerHeight - 0.5) * 2)) }) }
+    window.addEventListener('pointermove', move)
+    return () => { window.removeEventListener('pointermove', move); cancelAnimationFrame(raf); root.style.removeProperty('--mx'); root.style.removeProperty('--my') }
+  }, [page])
   useEffect(() => { const h = () => { if (window.location.hash === '#admin') setPage('admin') }; window.addEventListener('hashchange', h); return () => window.removeEventListener('hashchange', h) }, [])
   useEffect(() => { refreshRemotePlaces() }, [])
 
@@ -97,11 +106,13 @@ export default function App() {
     return () => window.removeEventListener('keydown', h)
   }, [])
 
+  const [mustIds, setMustIds] = useState<string[]>([])
+  const toggleMust = (id: string) => setMustIds(m => m.includes(id) ? m.filter(x => x !== id) : m.length >= MAX_MUST ? m : [...m, id])
   const goAdmin   = () => setPage('admin')
   const goOnboard = () => setPage('onboard')
   const goResult  = (ans: Answers) => { saveLast(ans); setShared(null); setAnswers(ans); setPage('result') }
   const goQuick   = () => {
-    setShared(null); setAnswers(inferAnswers({ now: new Date(), wx, last: loadLast() })); setPage('result')
+    setShared(null); setAnswers({ ...inferAnswers({ now: new Date(), wx, last: loadLast() }), ...(mustIds.length ? { must: mustIds } : { must: undefined }) }); setPage('result')
     // refine with the position only if the browser already has permission — never prompts by itself
     try {
       navigator.permissions?.query({ name:'geolocation' }).then(st => {
@@ -133,9 +144,9 @@ export default function App() {
 
       <div key={page} className="page-in">
       {page === 'welcome'     && <WelcomeScreen    onStart={goOnboard}   onAdmin={goAdmin} onMap={goMap} onExplore={goExplore} onQuick={goQuick} onMine={goMine} onSaved={loadSavedPlan() ? goSaved : undefined}/>}
-      {page === 'explore'     && <Suspense fallback={<div style={{ padding:'3rem', textAlign:'center' }}>…</div>}><ExploreScreen wx={wx} onHome={goHome} onPlan={goQuick}/></Suspense>}
-      {page === 'map-preview' && <Suspense fallback={<div style={{ padding:'3rem', textAlign:'center' }}>…</div>}><MapPreviewScreen onStart={goOnboard} onHome={goHome}/></Suspense>}
-      {page === 'onboard'     && <OnboardScreen    onDone={goResult} initial={loadLast()}/>}
+      {page === 'explore'     && <Suspense fallback={<div style={{ padding:'3rem', textAlign:'center' }}>…</div>}><ExploreScreen wx={wx} onHome={goHome} onPlan={goQuick} mustIds={mustIds} onToggleMust={toggleMust}/></Suspense>}
+      {page === 'map-preview' && <Suspense fallback={<div style={{ padding:'3rem', textAlign:'center' }}>…</div>}><MapPreviewScreen onStart={goOnboard} onHome={goHome} mustIds={mustIds} onToggleMust={toggleMust}/></Suspense>}
+      {page === 'onboard'     && <OnboardScreen    onDone={goResult} initial={{ ...loadLast(), ...(mustIds.length ? { must: mustIds } : {}) }}/>}
       {page === 'result'      && answers && <ResultScreen answers={answers} wx={wx} onRestart={goRestart} onAdjust={adjust} shared={shared ? { ids:shared.ids, startHour:shared.startHour, dateISO:shared.dateISO } : null}/>}
       {page === 'mine'        && <MineScreen onHome={goHome}/>}
       {page === 'admin'       && <Suspense fallback={null}><AdminScreen onExit={goHome}/></Suspense>}

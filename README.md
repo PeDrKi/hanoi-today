@@ -332,3 +332,53 @@ npm run deploy:api
 Dùng R2 (tuỳ chọn, cần thẻ thanh toán để bật R2, có 10 GB miễn phí): `npx wrangler r2 bucket create hanoi-today-images`, bỏ dấu `#` ở 3 dòng `[[r2_buckets]]` cuối `wrangler.toml`, rồi `npm run deploy:api`.
 
 Giới hạn: ảnh ≤ 450 KB sau khi nén, tối đa 600 ảnh khi lưu ở D1; SVG bị từ chối (bảo mật). Khi chưa cấu hình `VITE_API_URL`, ảnh nhỏ (≤ 70 KB) được lưu ngay trong trình duyệt.
+
+
+## v39 — Chuyển động (8 nguyên tắc)
+
+Tích hợp từ gói `animation-Motion`. Mỗi nguyên tắc được đặt vào chỗ nó có nghĩa với người dùng, không lặp vô hạn như bản demo. Tất cả tắt khi thiết bị bật "giảm chuyển động" (`prefers-reduced-motion`).
+
+| Nguyên tắc | Dùng ở đâu | Cách làm |
+|---|---|---|
+| **Easing** (vào chậm dần) | Mọi chuyển trang, thẻ, nút | Biến CSS `--ease-out`, `--ease-io` trong `global.css`; GSAP dùng `power3.out` |
+| **Parenting** (con đi theo cha) | Thẻ điểm dừng; biểu tượng của ô chọn | Thẻ hiện trước, rồi số thứ tự → ảnh → các dòng chữ lần lượt theo sau (`ResultScreen`); biểu tượng nghiêng nhẹ khi ô được chọn |
+| **Obscuration** (lớp trước che lớp sau) | Hộp thoại Admin | Nền mờ dần, hộp trượt lên che trang (`.sheet`, `.sheet-backdrop`) |
+| **Parallax** | Ảnh trong thẻ điểm dừng; nền trang chào | Ảnh trôi nhẹ so với khung khi cuộn (`PlaceImage` `parallax`, ScrollTrigger); nền phố cổ lệch ngược hướng con trỏ chuột (chỉ khi dùng chuột) |
+| **Dimensionality** | Thẻ thời tiết, mẹo mang theo | Đổi ngày dự báo thì thẻ lật quanh mép trên; mẹo thêm gập xuống (`.fold-in`) |
+| **Transformation** | Thanh bước hỏi; nút "Tạo lộ trình" | Bước hiện tại giãn thành viên thuốc dài; nút bấm co thành hình tròn |
+| **Dolly & zoom** | Bản đồ GIS | Camera bắt đầu rộng trên toàn thành phố rồi bay vào khung tuyến đi (`flyToBounds`); ghim rơi xuống lần lượt |
+| **Masking** | Mở trang kết quả; ảnh địa điểm | Hình tròn từ nút lớn dần che màn hình rồi nhường chỗ cho lộ trình (`morphAndReveal`); ảnh mở ra như mống mắt khi tải xong |
+
+Tùy chỉnh: thời lượng và đường cong ở đầu khối "Motion principles" trong `src/styles/global.css` và `src/utils/motion.ts`.
+
+
+## v40 — "⭐ Đáng đến nhất" trên bản đồ
+
+Màn hình "Xem bản đồ" có bảng **Đáng đến nhất** (nút vàng ở thanh lọc): 3 địa điểm tiêu biểu cho từng thể loại (chọn một thể loại thì hiện 5), bấm vào để bay tới điểm đó trên bản đồ. Các điểm được chọn có ⭐ trên ghim.
+
+**Cách xếp** (không dùng dữ liệu bịa; xem `src/utils/topPicks.ts`):
+1. Điểm do ban biên tập đánh dấu **Nổi bật** luôn đứng đầu (+100).
+2. Hợp mùa của tháng đang chọn: đẹp nhất +4, hợp mùa +1,5, nên chọn tháng khác −3.
+3. Hợp nhiều tâm trạng và nhóm đi (tối đa +3).
+4. Bằng điểm thì xếp theo tên (ổn định, không nhảy khi tải lại).
+
+**Cách đánh dấu Nổi bật:** Admin → Địa điểm → Sửa → tích "⭐ Nổi bật"; hoặc điền **Có** vào cột "Nổi bật (Có/Không)" (cột cuối) trong file Excel rồi `npm run import:places`. Nên chọn ít (1–3 điểm mỗi thể loại) và có lý do rõ ràng, vì đây là phần thể hiện ý kiến của nhóm nghiên cứu. Bảng ghi rõ "Chưa dựa trên đánh giá của du khách"; khi có đủ lượt đánh giá thật thì có thể đưa vào công thức.
+
+
+## v41 — Chấm 1–5 sao cho từng địa điểm
+
+- **Người dùng:** chấm sao trong khung chi tiết địa điểm ở màn hình bản đồ và ở mỗi thẻ điểm dừng của lộ trình; trang Khám phá hiện điểm trung bình. Bấm sao khác để đổi ý. Không cần tài khoản.
+- **Ẩn danh:** mỗi trình duyệt có một mã ngẫu nhiên (`ht_dev`) để mỗi thiết bị chỉ có 1 lượt cho mỗi địa điểm. Không lưu tên, email hay IP (IP chỉ được băm để giới hạn tốc độ: 60 lượt chấm/giờ/người).
+- **Ngoại tuyến:** sao của bạn lưu trong trình duyệt; nếu mạng lỗi thì gửi lại lần sau.
+- **Bảng "Đáng đến nhất":** điểm sao được tính có trọng số theo số lượt (mỗi điểm coi như đã có sẵn 5 lượt 3,5 sao, nên 1–2 lượt chấm gần như không đổi thứ hạng, còn 10 lượt trở lên thì có tác động rõ). Điểm có ≥ 5 lượt và trung bình ≥ 4 được gắn "Được chấm cao". Điểm do ban biên tập ⭐ vẫn luôn đứng đầu.
+- **Admin:** bảng Địa điểm có cột "Đánh giá" (trung bình và số lượt); tài khoản Biên tập có nút **Xoá sao** để dọn một địa điểm bị chấm spam (có ghi nhật ký).
+- **Triển khai:** cần chạy lại schema (bảng `place_ratings` mới) rồi deploy API:
+  `npx wrangler d1 execute hanoi-today --remote --config sync-server/wrangler.toml --file=sync-server/schema.sql` và `npm run deploy:api`.
+- **Lưu ý nghiên cứu:** đây là đánh giá địa điểm, khác với đánh giá cả lộ trình (có bộ SUS). Mỗi lượt chấm chỉ là một con số, chưa phải khảo sát có kiểm soát; khi báo cáo nên nêu rõ số lượt và cách thu thập.
+
+## v42 — Địa điểm muốn đi (pinned places)
+
+Người dùng chưa biết đi đâu nhưng muốn có một nơi cụ thể trong lộ trình: chọn tối đa 3 địa điểm của web
+(ở bước "Bạn muốn tìm gì?" hoặc bằng nút "＋ Thêm vào lộ trình" ở bản đồ / Khám phá). Lộ trình luôn chứa các nơi đó
+(nhãn 📌 Bạn chọn, kèm ghi chú nếu giá/thời tiết/mùa chưa lý tưởng) và app xếp thêm điểm quanh đó.
+Nơi không thể xếp (đóng cửa, không có giờ, hết chỗ) được báo rõ lý do. Chỉ frontend — dùng `cap-nhat.bat` mục 1.
