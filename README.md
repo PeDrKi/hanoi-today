@@ -390,3 +390,5 @@ routing.openstreetmap.de, miễn phí, không cần key), có tổng km/phút, t
 mạng đường (OSRM không có profile xe máy); thời gian là ước tính khi đường thông. Xe buýt: không có dữ liệu giờ buýt miễn phí
 cho Hà Nội nên mỗi chặng mở chỉ đường buýt trên Google Maps (không tự bịa tuyến). Nếu dịch vụ lỗi/chậm, bản đồ quay về đường
 chim bay. Chỉ frontend — `cap-nhat.bat` mục 1. Code: `src/utils/routing.ts`, `src/components/RoutePanel.tsx`.
+
+**v43.1:** mỗi chặng đường mang màu của điểm xuất phát (nền trắng viền ngoài cho dễ nhìn); danh sách chặng có thanh màu tương ứng.

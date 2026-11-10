@@ -9,7 +9,7 @@
 export type TravelMode = 'motorbike' | 'car' | 'bus' | 'walk'
 export interface Pt { lat: number; lng: number }
 export interface RouteStep { text: string; m: number }
-export interface RouteLeg { km: number; min: number; steps: RouteStep[] }
+export interface RouteLeg { km: number; min: number; steps: RouteStep[]; coords: [number, number][] }
 export interface RoutePlan { coords: [number, number][]; legs: RouteLeg[]; km: number; min: number }
 
 const BASE = 'https://routing.openstreetmap.de'
@@ -19,7 +19,7 @@ export const GMAPS_MODE: Record<TravelMode, string> = { motorbike: 'two-wheeler'
 const cache = new Map<string, RoutePlan>()
 export const routeKey = (pts: Pt[], mode: TravelMode) => `${PROFILE[mode] || mode}|${pts.map(p => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`).join(';')}`
 
-interface OsrmStep { distance: number; name?: string; maneuver?: { type?: string; modifier?: string } }
+interface OsrmStep { distance: number; geometry?: { coordinates?: number[][] }; name?: string; maneuver?: { type?: string; modifier?: string } }
 const DIR: Record<string, string> = { left: 'trái', right: 'phải', 'slight left': 'chếch trái', 'slight right': 'chếch phải', 'sharp left': 'gấp sang trái', 'sharp right': 'gấp sang phải', straight: 'thẳng', uturn: 'quay đầu' }
 
 export function stepText(s: OsrmStep): string {
@@ -39,7 +39,9 @@ export function parseOsrm(j: any): RoutePlan | null {
   if (j?.code !== 'Ok' || !r?.geometry?.coordinates?.length) return null
   const coords: [number, number][] = r.geometry.coordinates.map((c: number[]) => [c[1], c[0]])
   if (coords.some(c => !Number.isFinite(c[0]) || !Number.isFinite(c[1]))) return null
+  const ll = (c: number[][]) => c.map(q => [q[1], q[0]] as [number, number]).filter(q => Number.isFinite(q[0]) && Number.isFinite(q[1]))
   const legs: RouteLeg[] = (r.legs || []).map((l: any) => ({
+    coords: ll((l.steps || []).flatMap((s: OsrmStep) => s.geometry?.coordinates || [])),
     km: (l.distance || 0) / 1000,
     min: Math.max(1, Math.round((l.duration || 0) / 60)),
     steps: (l.steps || []).filter((s: OsrmStep) => s.distance > 0 || s.maneuver?.type === 'arrive').map((s: OsrmStep) => ({ text: stepText(s), m: Math.round(s.distance || 0) })),

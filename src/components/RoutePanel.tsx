@@ -68,7 +68,7 @@ export default function RoutePanel({ stops }: { stops: Stop[] }) {
           <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)} style={chip(mode === m)}>{x.modes[m]}</button>
         ))}
       </div>
-      <Suspense fallback={<div className="skeleton" style={{ height: 380 }}/>}><LeafletMap stops={stops} route={plan?.coords}/></Suspense>
+      <Suspense fallback={<div className="skeleton" style={{ height: 380 }}/>}><LeafletMap stops={stops} route={plan ? plan.legs.map(l => l.coords).filter(c => c.length > 1).length === plan.legs.length ? plan.legs.map(l => l.coords) : [plan.coords] : null}/></Suspense>
       <div style={{ marginTop: '0.9rem', padding: '1rem', background: C.card, border: `1px solid ${C.border}`, borderRadius: 14 }}>
         <div role="status" style={{ fontSize: '0.84rem', fontWeight: 600, color: C.ink, marginBottom: 4 }}>
           {st.s === 'loading' && x.loading}
@@ -82,7 +82,8 @@ export default function RoutePanel({ stops }: { stops: Stop[] }) {
             return (
               <div key={i} style={{ borderTop: `1px solid ${C.border}`, padding: '0.6rem 0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: '50%', background: MARKER_COLORS[(i + 1) % MARKER_COLORS.length], color: '#fff', fontSize: '0.6rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 2}</span>
+                  <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: '50%', background: MARKER_COLORS[i % MARKER_COLORS.length], color: '#fff', fontSize: '0.6rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                  <span aria-hidden="true" style={{ width: 22, height: 5, borderRadius: 3, background: MARKER_COLORS[i % MARKER_COLORS.length] }}/>
                   <span style={{ fontSize: '0.82rem', fontWeight: 500, color: C.ink }}>{x.leg(i + 1, i + 2)} · {b.name}</span>
                   {leg && mode !== 'bus' && <span style={{ fontSize: '0.74rem', color: C.muted }}>{leg.km.toFixed(1)} km · ~{leg.min} {lang === 'EN' ? 'min' : 'phút'}</span>}
                   <a href={legUrl(a, b, mode)} target="_blank" rel="noopener noreferrer" style={{ ...link, marginLeft: 'auto' }}>{mode === 'bus' ? x.openBus : x.open}</a>

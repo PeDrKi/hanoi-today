@@ -7,8 +7,8 @@ const good = {
     distance: 3200, duration: 540,
     geometry: { coordinates: [[105.85, 21.03], [105.86, 21.04]] },
     legs: [{ distance: 3200, duration: 540, steps: [
-      { distance: 100, name: 'Hàng Bạc', maneuver: { type: 'depart' } },
-      { distance: 900, name: 'Lê Thái Tổ', maneuver: { type: 'turn', modifier: 'left' } },
+      { distance: 100, name: 'Hàng Bạc', maneuver: { type: 'depart' }, geometry: { coordinates: [[105.85, 21.03], [105.855, 21.035]] } },
+      { distance: 900, name: 'Lê Thái Tổ', maneuver: { type: 'turn', modifier: 'left' }, geometry: { coordinates: [[105.855, 21.035], [105.86, 21.04]] } },
       { distance: 0, name: '', maneuver: { type: 'arrive' } },
     ] }],
   }],
@@ -19,6 +19,7 @@ describe('routing', () => {
   it('parses OSRM output, swapping lng/lat to lat/lng', () => {
     const p = parseOsrm(good)!
     expect(p.coords[0]).toEqual([21.03, 105.85])
+    expect(p.legs[0].coords).toEqual([[21.03, 105.85], [21.035, 105.855], [21.035, 105.855], [21.04, 105.86]])
     expect(p.km).toBeCloseTo(3.2); expect(p.min).toBe(9)
     expect(p.legs[0].steps.map(s => s.text)).toEqual(['Xuất phát trên Hàng Bạc', 'Rẽ trái vào Lê Thái Tổ', 'Đến nơi'])
   })

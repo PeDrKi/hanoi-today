@@ -7,7 +7,7 @@ import { escapeHtml } from '../utils/html'
 import { C, MARKER_COLORS } from '../styles/tokens'
 import { reducedMotion } from '../utils/motion'
 
-export default function LeafletMap({ stops, route }: { stops?: Pick<Stop, 'lat' | 'lng' | 'name' | 'time' | 'desc' | 'image'>[]; route?: [number, number][] | null }) {
+export default function LeafletMap({ stops, route }: { stops?: Pick<Stop, 'lat' | 'lng' | 'name' | 'time' | 'desc' | 'image'>[]; route?: [number, number][][] | null }) {
   const t = useT()
   const [tilesFailed, setTilesFailed] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -61,16 +61,18 @@ export default function LeafletMap({ stops, route }: { stops?: Pick<Stop, 'lat' 
     })
 
     if (latlngs.length > 1) {
-      if (route && route.length > 1) {
-        L.polyline(route, { color:'#fff', weight:8, opacity:.9, lineJoin:'round' }).addTo(layers)
-        L.polyline(route, { color:C.rust, weight:5, opacity:.95, lineJoin:'round' }).addTo(layers)
+      const legs = (route || []).filter(l => l.length > 1)
+      if (legs.length) {
+        // each leg takes the colour of the stop it starts from, with a white casing so it reads over any map
+        legs.forEach(l => L.polyline(l, { color:'#fff', weight:9, opacity:.9, lineJoin:'round', lineCap:'round' }).addTo(layers))
+        legs.forEach((l, i) => L.polyline(l, { color:MARKER_COLORS[i % MARKER_COLORS.length], weight:5, opacity:1, lineJoin:'round', lineCap:'round' }).addTo(layers))
       } else {
         L.polyline(latlngs, { color:C.rust, weight:2.5, opacity:.65, dashArray:'8,6' }).addTo(layers)
       }
     }
 
     // dolly & zoom: the camera starts wide over the city and glides in to frame the route (plain fit when motion is reduced)
-    const box = L.latLngBounds(route && route.length > 1 ? [...latlngs, ...route] : latlngs)
+    const box = L.latLngBounds([...latlngs, ...(route || []).flat()])
     if (reducedMotion()) mapRef.current.fitBounds(box, { padding:[44,44] })
     else mapRef.current.flyToBounds(box, { padding:[44,44], duration:1.25, easeLinearity:0.22 })
   }, [stops, route])
