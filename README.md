@@ -419,3 +419,5 @@ thanh tab (Lộ trình / Bản đồ / Di chuyển / Đánh giá) chữ lớn h�
 
 **v45.2:** khu điều khiển ở màn kết quả nổi bật hơn: thẻ "🎛 Chỉnh nhanh" có viền cam, chia 3 hàng có nhãn (Tâm trạng / Loại hình / Thời lượng), lựa chọn đang chọn tô kín màu cam kèm dấu ✓;
 tab đang chọn là nút cam kín, các tab khác là nút xám nhạt; "Mở cả lộ trình trên Google Maps" là nút chính màu cam, các nút còn lại dạng viên thuốc.
+
+**v45.3:** (1) khu điều khiển ở màn kết quả (tab, "Chỉnh nhanh", nút hành động) thu nhỏ khoảng một nửa, vẫn giữ màu nổi bật. (2) Tab Bản đồ GIS có nút "⛶ Toàn màn hình": bản đồ phủ cả màn hình, chọn xe máy/ô tô/buýt/đi bộ ở thanh trên, nút giữa dưới mở/ẩn chi tiết các chặng; thoát bằng "✕ Thu nhỏ" hoặc phím Esc. Bản đồ tự khung lại khi đổi kích thước hoặc khi đường đi tải xong (không bay vòng như trước).

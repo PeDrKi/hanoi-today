@@ -495,7 +495,7 @@ export default function ResultScreen({ answers, wx, onRestart, onAdjust, shared 
             {tab === 'list' && (
               <>
             {onAdjust && status === 'done' && (
-              <div style={{ marginBottom:'1.1rem' }}>
+              <div style={{ marginBottom:'0.7rem' }}>
                 {answers.auto && answers.why && <div style={{ fontSize:'0.74rem', color:C.muted, marginBottom:6 }}>{r.autoBasis} {answers.why.map(k => (r.autoWhy as Record<string, string>)[k]).filter(Boolean).join(', ')}</div>}
                 <div className="tweak-title">🎛 {r.tweakLabel}</div>
                 <div className="tweak-card" role="group" aria-label={r.tweakLabel}>

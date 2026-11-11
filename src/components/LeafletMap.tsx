@@ -7,12 +7,14 @@ import { escapeHtml } from '../utils/html'
 import { C, MARKER_COLORS } from '../styles/tokens'
 import { reducedMotion } from '../utils/motion'
 
-export default function LeafletMap({ stops, route }: { stops?: Pick<Stop, 'lat' | 'lng' | 'name' | 'time' | 'desc' | 'image'>[]; route?: [number, number][][] | null }) {
+export default function LeafletMap({ stops, route, height = 380 }: { stops?: Pick<Stop, 'lat' | 'lng' | 'name' | 'time' | 'desc' | 'image'>[]; route?: [number, number][][] | null; height?: number | string }) {
   const t = useT()
   const [tilesFailed, setTilesFailed] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<L.Map | null>(null)
   const layersRef    = useRef<L.LayerGroup | null>(null)
+  const boxRef       = useRef<L.LatLngBounds | null>(null)
+  const framed       = useRef(false)
 
   const render = useCallback(() => {
     if (!containerRef.current) return
@@ -73,15 +75,31 @@ export default function LeafletMap({ stops, route }: { stops?: Pick<Stop, 'lat' 
 
     // dolly & zoom: the camera starts wide over the city and glides in to frame the route (plain fit when motion is reduced)
     const box = L.latLngBounds([...latlngs, ...(route || []).flat()])
-    if (reducedMotion()) mapRef.current.fitBounds(box, { padding:[44,44] })
+    boxRef.current = box
+    mapRef.current.invalidateSize()
+    // the glide-in plays once; later changes (a route arriving, another vehicle) just re-frame without a long flight
+    if (reducedMotion() || framed.current) mapRef.current.fitBounds(box, { padding:[44,44], animate:false })
     else mapRef.current.flyToBounds(box, { padding:[44,44], duration:1.25, easeLinearity:0.22 })
+    framed.current = true
   }, [stops, route])
 
   useEffect(() => { render() }, [render])
+  // when the container changes size (full screen on/off, rotation) keep the map correct and re-frame the route
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    let t: ReturnType<typeof setTimeout>
+    const ro = new ResizeObserver(() => {
+      clearTimeout(t)
+      t = setTimeout(() => { const m = mapRef.current; if (!m) return; m.invalidateSize(); if (boxRef.current) m.fitBounds(boxRef.current, { padding:[44,44], animate:false }) }, 120)
+    })
+    ro.observe(el)
+    return () => { clearTimeout(t); ro.disconnect() }
+  }, [])
   useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null; layersRef.current = null }, [])
 
   return (
-    <div style={{ position:'relative', border:`1px solid ${C.border}` }}>
+    <div style={{ position:'relative', border:`1px solid ${C.border}`, height: typeof height === 'string' ? height : undefined }}>
       <div style={{
         position:'absolute', top:10, left:10, zIndex:500,
         background:'rgba(244,239,230,0.9)', backdropFilter:'blur(6px)',
@@ -90,7 +108,7 @@ export default function LeafletMap({ stops, route }: { stops?: Pick<Stop, 'lat' 
       }}>
         OpenStreetMap · Leaflet GIS
       </div>
-      <div ref={containerRef} style={{ height:380, width:'100%' }}/>
+      <div ref={containerRef} style={{ height, width:'100%' }}/>
       {tilesFailed && <div role="status" style={{ position:'absolute', left:10, right:10, bottom:34, zIndex:500, background:'rgba(255,248,225,0.95)', border:'1px solid rgba(232,160,32,0.5)', padding:'0.45rem 0.7rem', fontSize:'0.72rem', color:'#6B4E00' }}>{t.result.mapNoTiles}</div>}
     </div>
   )
