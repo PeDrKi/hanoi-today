@@ -416,3 +416,6 @@ Chỉ frontend (`cap-nhat.bat` mục 1).
 
 **v45.1 — Màn kết quả dễ thao tác hơn:** thời tiết (tính năng phụ) mặc định thu gọn thành 1 dải (nhiệt độ, mưa/UV, nên mặc) — bấm "Chi tiết thời tiết" mới mở bảng đầy đủ;
 thanh tab (Lộ trình / Bản đồ / Di chuyển / Đánh giá) chữ lớn hơn, tab đang chọn có nền; nhóm "Chỉnh nhanh" có nhãn, nút dạng viên thuốc, tâm trạng đang chọn tô màu.
+
+**v45.2:** khu điều khiển ở màn kết quả nổi bật hơn: thẻ "🎛 Chỉnh nhanh" có viền cam, chia 3 hàng có nhãn (Tâm trạng / Loại hình / Thời lượng), lựa chọn đang chọn tô kín màu cam kèm dấu ✓;
+tab đang chọn là nút cam kín, các tab khác là nút xám nhạt; "Mở cả lộ trình trên Google Maps" là nút chính màu cam, các nút còn lại dạng viên thuốc.

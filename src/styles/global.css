@@ -203,3 +203,20 @@ div[style*="transform-origin"]{animation:grow .8s ease both}
 /* weather summary strip */
 .wx-strip{width:100%;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;text-align:left;cursor:pointer;font-family:inherit;color:#fff;border:none;border-radius:16px;padding:.7rem 1rem;box-shadow:0 4px 14px rgba(40,50,70,.16);transition:transform .2s var(--ease-out,ease),box-shadow .2s}
 .wx-strip:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(40,50,70,.22)}
+
+/* ───────── v45.2: result controls stand out ───────── */
+.tweak-title{font-size:.95rem;font-weight:700;margin:0 0 .5rem;color:#B85C2A}
+.tweak-card{border:1px solid rgba(184,92,42,.45)!important;background:rgba(184,92,42,.08);border-radius:var(--r-lg,16px);padding:.9rem 1rem;display:flex;flex-direction:column;gap:.7rem;box-shadow:0 4px 16px rgba(0,0,0,.10)}
+.tweak-row{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
+.tweak-lbl{flex:0 0 5.2rem;font-size:.74rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.75}
+.chip-opt{min-height:38px;padding:.45rem 1rem!important;font-size:.86rem!important;font-weight:600!important;border-radius:999px!important;background:rgba(127,127,127,.20)!important;color:inherit!important;transition:transform .15s,background .15s,box-shadow .15s}
+.chip-opt:hover{transform:translateY(-1px);background:rgba(127,127,127,.32)!important}
+.chip-opt[data-on="true"]{background:#B85C2A!important;color:#fff!important;box-shadow:0 3px 12px rgba(184,92,42,.5)}
+.chip-opt[data-on="true"]::before{content:"✓ ";font-weight:700}
+.tab-bar{gap:.35rem;padding-bottom:.5rem;border-bottom:none!important}
+.tab-bar button[data-on="true"]{background:#B85C2A!important;color:#fff!important;border-radius:999px!important;border-bottom-color:transparent!important;box-shadow:0 3px 12px rgba(184,92,42,.45)}
+.tab-bar button[data-on="false"]{background:rgba(127,127,127,.14)!important;border-radius:999px!important;border-bottom-color:transparent!important}
+.act-bar a.btn-a{background:#B85C2A!important;color:#fff!important;font-size:.88rem!important;font-weight:600;padding:.65rem 1.3rem!important;border-radius:999px;box-shadow:0 3px 12px rgba(184,92,42,.4)}
+.act-bar button{background:rgba(127,127,127,.20)!important;color:inherit!important;font-size:.85rem!important;font-weight:600;padding:.6rem 1.1rem!important;border-radius:999px}
+.act-bar button:hover{background:rgba(127,127,127,.32)!important}
+@media(max-width:640px){.tweak-lbl{flex-basis:100%}}
