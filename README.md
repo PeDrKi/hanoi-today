@@ -401,3 +401,7 @@ Hà Nội; nơi không tìm thấy / tên không khớp / ngoài Hà Nội bị 
 web không có giờ mở cửa/giá/ảnh nên app ghi rõ. Giới hạn 10 lượt/giờ/người. Không đụng `src/utils/api.js`.
 Bật: `cd sync-server && npx wrangler secret put GEMINI_KEY` (tuỳ chọn `GEMINI_MODEL`, mặc định gemini-2.5-flash), rồi `npm run deploy:api`.
 Code: `sync-server/aisearch.ts`, `src/components/AiSearch.tsx`.
+
+**v44.2:** nếu Worker có secret `GOOGLE_MAPS_KEY` (Google Maps Platform → Places API (New)), mỗi gợi ý của AI được kiểm chứng và lấy toạ độ ngay trên Google Maps
+(loại nơi "đóng cửa vĩnh viễn", tên không khớp, hoặc không có trên Google Maps); nút mở đúng trang Google Maps của nơi đó. Không có key này thì
+tự quay về OpenStreetMap. Chỉ lấy các trường rẻ (tên, địa chỉ, toạ độ, trạng thái, link) để tránh tốn phí. Cần bật thanh toán trên Google Cloud.

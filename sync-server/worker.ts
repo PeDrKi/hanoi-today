@@ -1,6 +1,6 @@
 // Cloudflare Worker (free plan) — deploy with `npx wrangler deploy` from the sync-server folder.
 // Needs a D1 database bound as DB (see wrangler.toml + schema.sql) and a secret ADMIN_TOKENS (`npx wrangler secret put ADMIN_TOKENS`, format name:token:role,…) or the older single ADMIN_TOKEN.
-// Optional: `npx wrangler secret put GEMINI_KEY` turns on "Hỏi AI tìm nơi khác" (key stays server-side). GEMINI_MODEL overrides the default model.
+// Optional: `npx wrangler secret put GEMINI_KEY` turns on "Hỏi AI tìm nơi khác" (key stays server-side). GEMINI_MODEL overrides the default model. `npx wrangler secret put GOOGLE_MAPS_KEY` (Places API New) makes it verify + locate places on Google Maps.
 // Optional: an R2 bucket bound as IMAGES keeps uploaded photos there; without it they go into the D1 table `images`.
 import { handle, parseAdmins, type BlobStore } from './handler'
 import { d1Api, type D1Like } from './db'
@@ -11,7 +11,7 @@ interface R2Like {
   get(key: string): Promise<R2Obj | null>
   delete(key: string): Promise<void>
 }
-interface Env { DB: D1Like; IMAGES?: R2Like; ADMIN_TOKENS?: string; ADMIN_TOKEN?: string; ALLOWED_ORIGIN?: string; GEMINI_KEY?: string; GEMINI_MODEL?: string }
+interface Env { DB: D1Like; IMAGES?: R2Like; ADMIN_TOKENS?: string; ADMIN_TOKEN?: string; ALLOWED_ORIGIN?: string; GEMINI_KEY?: string; GEMINI_MODEL?: string; GOOGLE_MAPS_KEY?: string }
 
 const r2Store = (b: R2Like): BlobStore => ({
   async put(id, mime, bytes) { await b.put('places/' + id, bytes, { httpMetadata: { contentType: mime } }); return 'ok' },
@@ -23,7 +23,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     return handle(request, d1Api(env.DB), {
       origin: (env.ALLOWED_ORIGIN || '*').trim().replace(/\/+$/, ''), admins: parseAdmins(env.ADMIN_TOKENS, env.ADMIN_TOKEN),
-      ip: request.headers.get('CF-Connecting-IP') || '', blobs: env.IMAGES ? r2Store(env.IMAGES) : undefined, aiKey: env.GEMINI_KEY, aiModel: env.GEMINI_MODEL,
+      ip: request.headers.get('CF-Connecting-IP') || '', blobs: env.IMAGES ? r2Store(env.IMAGES) : undefined, aiKey: env.GEMINI_KEY, mapsKey: env.GOOGLE_MAPS_KEY, aiModel: env.GEMINI_MODEL,
     })
   },
 }

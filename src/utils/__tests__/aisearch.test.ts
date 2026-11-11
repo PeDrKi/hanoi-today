@@ -55,6 +55,30 @@ describe('AI place search', () => {
   })
 })
 
+describe('AI place search with Google Maps', () => {
+  const gm = (places: unknown[], status = 200) => (async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url)
+    if (u.includes('generativelanguage')) return new Response(JSON.stringify(gemini([{ name: 'Cà phê Giảng', area: 'Hoàn Kiếm', category: 'cà phê', why: 'a' }, { name: 'Quán Đã Đóng', area: 'x', category: 'y', why: 'z' }, { name: 'Quán Ma', area: 'x', category: 'y', why: 'z' }])))
+    expect((init?.headers as Record<string, string>)['X-Goog-Api-Key']).toBe('MAPSKEY')
+    const body = JSON.parse(String(init?.body))
+    const q = body.textQuery as string
+    if (status !== 200) return new Response(JSON.stringify({ error: { message: 'API not enabled' } }), { status })
+    return new Response(JSON.stringify({ places: q.startsWith('Quán Ma') ? [] : places.filter(p => (p as { n: string }).n === (q.startsWith('Quán Đã') ? 'Quán Đã Đóng' : 'Cà phê Giảng')).map(p => { const x = p as { n: string; st: string }; return { displayName: { text: x.n }, formattedAddress: '39 Nguyễn Hữu Huân', location: { latitude: 21.0345, longitude: 105.8517 }, googleMapsUri: 'https://maps.google.com/?cid=1', businessStatus: x.st } }) }))
+  }) as unknown as typeof fetch
+  it('uses Google coordinates, skips permanently closed and unknown places', async () => {
+    const r = await aiSearch('cà phê', { key: 'k', mapsKey: 'MAPSKEY', fetchFn: gm([{ n: 'Cà phê Giảng', st: 'OPERATIONAL' }, { n: 'Quán Đã Đóng', st: 'CLOSED_PERMANENTLY' }]) })
+    expect(r.places.map(p => p.name)).toEqual(['Cà phê Giảng'])
+    expect(r.places[0]).toMatchObject({ source: 'google', lat: 21.0345, lng: 105.8517, maps: 'https://maps.google.com/?cid=1' })
+  })
+  it('refuses a non-Google maps link and reports Google errors', async () => {
+    const f = (async (url: string | URL | Request) => String(url).includes('generativelanguage')
+      ? new Response(JSON.stringify(gemini([{ name: 'Cà phê Giảng' }])))
+      : new Response(JSON.stringify({ places: [{ displayName: { text: 'Cà phê Giảng' }, location: { latitude: 21.03, longitude: 105.85 }, googleMapsUri: 'https://evil.example/x' }] }))) as unknown as typeof fetch
+    expect((await aiSearch('cà phê', { key: 'k', mapsKey: 'MAPSKEY', fetchFn: f })).places[0].maps).toBeUndefined()
+    await expect(aiSearch('cà phê', { key: 'k', mapsKey: 'MAPSKEY', fetchFn: gm([], 403) })).rejects.toThrow(/Google Maps 403: API not enabled/)
+  })
+})
+
 describe('/v1/ai/search route', () => {
   const post = (body: unknown, o: Record<string, unknown> = {}, ip = '') =>
     handle(new Request('http://x/v1/ai/search', { method: 'POST', body: JSON.stringify(body) }), api, { aiKey: 'k', aiFetch: fakeFetch([], {}), ip, ...o })

@@ -5,19 +5,19 @@ import { aiEnabled, aiSearchPlaces, type AiPlace } from '../utils/backend'
 
 const L10N = {
   VI: {
-    title: '✨ Hỏi AI tìm nơi khác', hint: 'Nơi bạn muốn không có trong danh sách của web? Mô tả bằng lời, AI sẽ gợi ý và app kiểm tra vị trí thật trên OpenStreetMap.',
+    title: '✨ Hỏi AI tìm nơi khác', hint: 'Nơi bạn muốn không có trong danh sách của web? Mô tả bằng lời, AI sẽ gợi ý và app kiểm tra nơi đó có thật trên bản đồ.',
     ph: 'Ví dụ: quán cà phê yên tĩnh gần Hồ Tây để làm việc', go: 'Tìm', busy: 'Đang tìm và kiểm tra…',
     none: 'AI chưa tìm được nơi nào kiểm chứng được. Thử mô tả cụ thể hơn (khu vực, loại hình).',
     limit: 'Bạn đã tìm nhiều lần trong giờ qua. Hãy thử lại sau.', error: 'Không tìm được lúc này. Thử lại sau nhé.',
-    note: 'Gợi ý của AI — chưa nằm trong dữ liệu của web nên chưa có giờ mở cửa, giá, ảnh. Vị trí lấy từ OpenStreetMap; hãy kiểm tra lại trước khi đi.',
+    note: 'Gợi ý của AI — chưa nằm trong dữ liệu của web nên chưa có giờ mở cửa, giá, ảnh. Hãy kiểm tra lại trước khi đi.', noteG: 'Vị trí lấy từ Google Maps.', noteO: 'Vị trí lấy từ OpenStreetMap.',
     gmap: 'Mở Google Maps ↗', osm: 'OpenStreetMap ↗', found: (n: number, a: number) => `Kiểm chứng được ${n}/${a} gợi ý`,
   },
   EN: {
-    title: '✨ Ask AI for other places', hint: 'Not in the site\'s list? Describe it in words; AI suggests and the app checks the real location on OpenStreetMap.',
+    title: '✨ Ask AI for other places', hint: 'Not in the site\'s list? Describe it in words; AI suggests and the app checks the place really exists on a map.',
     ph: 'e.g. a quiet café near West Lake to work from', go: 'Search', busy: 'Searching and verifying…',
     none: 'AI could not find any place that could be verified. Try being more specific (area, type).',
     limit: 'You searched a lot in the last hour. Please try again later.', error: 'Could not search right now. Try again later.',
-    note: 'AI suggestion — not in the site\'s data, so no opening hours, price or photos. Location comes from OpenStreetMap; double-check before you go.',
+    note: 'AI suggestion — not in the site\'s data, so no opening hours, price or photos. Double-check before you go.', noteG: 'Location from Google Maps.', noteO: 'Location from OpenStreetMap.',
     gmap: 'Open in Google Maps ↗', osm: 'OpenStreetMap ↗', found: (n: number, a: number) => `Verified ${n} of ${a} suggestions`,
   },
 }
@@ -39,7 +39,7 @@ export default function AiSearch() {
     setBusy(true); setMsg(''); setRes(null)
     const r = await aiSearchPlaces(q.trim())
     setBusy(false)
-    if (!r.ok) { setMsg(r.reason === 'limit' ? x.limit : x.error); return }
+    if (!r.ok) { setMsg(r.reason === 'limit' ? x.limit : x.error + (r.detail ? ` (${r.detail})` : '')); return }
     if (!r.places.length) { setMsg(x.none); return }
     setRes({ places: r.places, asked: r.asked })
   }
@@ -57,7 +57,7 @@ export default function AiSearch() {
       <div role="status" aria-live="polite">
         {msg && <p style={{ fontSize: '0.8rem', color: '#9A5B00', margin: '0.7rem 0 0' }}>{msg}</p>}
         {res && <>
-          <p style={{ fontSize: '0.72rem', color: C.muted, margin: '0.8rem 0 0.4rem' }}>{x.found(res.places.length, res.asked)} · {x.note}</p>
+          <p style={{ fontSize: '0.72rem', color: C.muted, margin: '0.8rem 0 0.4rem' }}>{x.found(res.places.length, res.asked)} · {x.note} {res.places.some(p => p.source === 'google') ? x.noteG : x.noteO}</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))', gap: 10 }}>
             {res.places.map(p => (
               <article key={p.lat + ',' + p.lng} style={{ padding: '0.8rem 0.9rem', border: `1px solid ${C.border}`, borderRadius: 12, background: 'white' }}>
@@ -66,7 +66,7 @@ export default function AiSearch() {
                 {p.why && <p style={{ fontSize: '0.8rem', color: C.ink, margin: '0 0 0.4rem', lineHeight: 1.55 }}>{p.why}</p>}
                 {p.address && <p style={{ fontSize: '0.7rem', color: C.muted, margin: '0 0 0.5rem', lineHeight: 1.5 }}>📍 {p.address}</p>}
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <a style={link} target="_blank" rel="noopener noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`}>{x.gmap}</a>
+                  <a style={link} target="_blank" rel="noopener noreferrer" href={p.maps || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name + ', Hà Nội')}`}>{x.gmap}</a>
                   {p.osm && <a style={link} target="_blank" rel="noopener noreferrer" href={p.osm}>{x.osm}</a>}
                 </div>
               </article>

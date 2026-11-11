@@ -80,21 +80,21 @@ export async function adminClearRatings(token: string, placeId: string): Promise
   return ((await r.json()) as { removed?: number }).removed ?? 0
 }
 
-export interface AiPlace { name: string; area: string; category: string; why: string; lat: number; lng: number; address: string; osm: string }
+export interface AiPlace { name: string; area: string; category: string; why: string; lat: number; lng: number; address: string; osm: string; maps?: string; source?: 'google' | 'osm' }
 let aiOn: Promise<boolean> | null = null
 /** Is "Hỏi AI tìm nơi khác" switched on at the server (GEMINI_KEY set)? Cached for the session. */
 export function aiEnabled(): Promise<boolean> {
   if (!API_URL) return Promise.resolve(false)
   return (aiOn ??= fetch(API_URL + '/v1/ai/search').then(r => (r.ok ? r.json() : { enabled: false })).then(j => !!j?.enabled).catch(() => false))
 }
-export type AiResult = { ok: true; places: AiPlace[]; asked: number } | { ok: false; reason: 'limit' | 'off' | 'error' }
+export type AiResult = { ok: true; places: AiPlace[]; asked: number } | { ok: false; reason: 'limit' | 'off' | 'error'; detail?: string }
 export async function aiSearchPlaces(q: string): Promise<AiResult> {
   if (!API_URL) return { ok: false, reason: 'off' }
   try {
     const r = await fetch(API_URL + '/v1/ai/search', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q }) })
     if (r.status === 429) return { ok: false, reason: 'limit' }
     if (r.status === 503) return { ok: false, reason: 'off' }
-    if (!r.ok) return { ok: false, reason: 'error' }
+    if (!r.ok) { const d = await r.json().catch(() => null) as { detail?: string } | null; return { ok: false, reason: 'error', detail: d?.detail } }
     const j = await r.json() as { places?: AiPlace[]; asked?: number }
     const places = (j.places || []).filter(p => p && typeof p.name === 'string' && Number.isFinite(p.lat) && Number.isFinite(p.lng))
     return { ok: true, places, asked: j.asked ?? places.length }
