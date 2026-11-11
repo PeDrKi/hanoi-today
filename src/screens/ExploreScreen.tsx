@@ -11,6 +11,7 @@ import PlaceImage from '../components/PlaceImage'
 import SafetyNote from '../components/SafetyNote'
 import LangToggle from '../components/LangToggle'
 import { useLang, useT } from '../i18n'
+import AiSearch from '../components/AiSearch'
 import { MAX_MUST } from '../utils/recommend'
 import { useRatings, fmtAvg } from '../utils/ratings'
 import type { Place, Weather } from '../types'
@@ -115,6 +116,7 @@ export default function ExploreScreen({ wx, onHome, onPlan, mustIds = [], onTogg
           <span role="status" style={{ fontSize:'0.78rem', color:C.muted }}>{x.count(list.length)}</span>
         </div>
 
+        <AiSearch/>
         <div ref={grid} style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(250px,1fr))', gap:14 }}>
           {list.map(p => (
             <button key={p.id} type="button" className="ex-card" onClick={() => setSel(p)}

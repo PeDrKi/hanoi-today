@@ -392,3 +392,12 @@ cho Hà Nội nên mỗi chặng mở chỉ đường buýt trên Google Maps (k
 chim bay. Chỉ frontend — `cap-nhat.bat` mục 1. Code: `src/utils/routing.ts`, `src/components/RoutePanel.tsx`.
 
 **v43.1:** mỗi chặng đường mang màu của điểm xuất phát (nền trắng viền ngoài cho dễ nhìn); danh sách chặng có thanh màu tương ứng.
+
+## v44 — Hỏi AI tìm nơi khác
+
+Màn Khám phá có ô "✨ Hỏi AI tìm nơi khác" (chỉ hiện khi Worker đã có secret `GEMINI_KEY`). Luồng: câu hỏi → Worker gọi Gemini
+(key chỉ nằm ở Worker, không lộ ra trình duyệt) lấy ≤4 tên nơi → mỗi nơi được kiểm chứng bằng OpenStreetMap (Nominatim) trong khung
+Hà Nội; nơi không tìm thấy / tên không khớp / ngoài Hà Nội bị loại. Toạ độ và địa chỉ luôn lấy từ OSM, không lấy từ AI. Nơi ngoài
+web không có giờ mở cửa/giá/ảnh nên app ghi rõ. Giới hạn 10 lượt/giờ/người. Không đụng `src/utils/api.js`.
+Bật: `cd sync-server && npx wrangler secret put GEMINI_KEY` (tuỳ chọn `GEMINI_MODEL`, mặc định gemini-2.5-flash), rồi `npm run deploy:api`.
+Code: `sync-server/aisearch.ts`, `src/components/AiSearch.tsx`.

@@ -13,7 +13,7 @@ http.createServer(async (req, res) => {
   for await (const c of req) chunks.push(c as Buffer)
   const body = Buffer.concat(chunks)
   const request = new Request('http://localhost' + req.url, { method: req.method, headers: req.headers as Record<string, string>, body: ['GET', 'HEAD'].includes(req.method || 'GET') ? undefined : body })
-  const out = await handle(request, api, { admins, ip: req.socket.remoteAddress || '' })
+  const out = await handle(request, api, { admins, aiKey: process.env.GEMINI_KEY || '', ip: req.socket.remoteAddress || '' })
   res.writeHead(out.status, Object.fromEntries(out.headers))
   res.end(Buffer.from(await out.arrayBuffer()))
 }).listen(Number(process.env.PORT || 8787), () => console.log('api dev server on', process.env.PORT || 8787, '(admins: ' + admins.map(a => `${a.name}/${a.role}`).join(', ') + ')'))

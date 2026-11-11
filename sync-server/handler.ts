@@ -33,11 +33,13 @@ const ID_RE = /^[a-f0-9]{64}$/
 const DATA_RE = /^[A-Za-z0-9+/=_-]*$/
 export const MAX_DATA = 60000
 export const MAX_PLACES = 500
+import { aiSearch, MAX_QUERY } from './aisearch'
 export const MAX_PLACE_BYTES = 8000
 export const MAX_REVIEW_BYTES = 4000
 export const MAX_IMAGE_BYTES = 450_000
 export const RATE_LIMIT = 60                   // place ratings per visitor per hour
 export const REVIEW_LIMIT = 5                 // reviews per visitor …
+export const AI_LIMIT = 10                      // AI place searches per visitor per hour
 export const REVIEW_WINDOW_MS = 3600 * 1000   // … per hour
 
 export type Role = 'viewer' | 'editor'
@@ -124,14 +126,14 @@ export function sniffImage(b: Uint8Array): 'image/jpeg' | 'image/png' | 'image/w
   return null
 }
 
-export interface HandleOpts { blobs?: BlobStore; origin?: string; admins?: Admin[]; /** visitor address, used only to rate-limit (stored as a salted hash) */ ip?: string }
+export interface HandleOpts { /** Gemini key for /v1/ai/search; without it the route answers 503 and the app hides the feature */ aiKey?: string; aiModel?: string; aiFetch?: typeof fetch; blobs?: BlobStore; origin?: string; admins?: Admin[]; /** visitor address, used only to rate-limit (stored as a salted hash) */ ip?: string }
 
 async function hashIp(ip: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('hanoi-today:ip:' + ip))
   return [...new Uint8Array(buf)].slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
-export async function handle(request: Request, api: Api, { origin = '*', admins = [], ip = '', blobs }: HandleOpts = {}): Promise<Response> {
+export async function handle(request: Request, api: Api, { origin = '*', admins = [], ip = '', blobs, aiKey = '', aiModel, aiFetch }: HandleOpts = {}): Promise<Response> {
   const store: BlobStore = blobs ?? { put: (id, mime, b) => api.putImage(id, mime, b), get: id => api.getImage(id), del: id => api.deleteImage(id) }
   const h = { ...cors(origin), 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
   const json = (obj: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(obj), { status, headers: { ...h, ...extra } })
@@ -217,6 +219,17 @@ export async function handle(request: Request, api: Api, { origin = '*', admins 
   }
 
   // ── place ratings ──
+  if (path === '/v1/ai/search') {
+    if (request.method === 'GET') return json({ enabled: !!aiKey }, 200, { 'Cache-Control': 'public, max-age=300' })
+    if (request.method !== 'POST') return json({ error: 'method' }, 405)
+    if (!aiKey) return json({ error: 'ai disabled' }, 503)
+    const body = await readBody(1024)
+    if (body instanceof Response) return body
+    const q = (body as { q?: unknown })?.q
+    if (typeof q !== 'string' || q.trim().length < 3 || q.length > MAX_QUERY) return json({ error: 'bad query' }, 400)
+    if (ip && !(await api.hit('ai:' + (await hashIp(ip)), AI_LIMIT, REVIEW_WINDOW_MS))) return json({ error: 'too many' }, 429, { 'Retry-After': '3600' })
+    try { return json(await aiSearch(q, { key: aiKey, model: aiModel, fetchFn: aiFetch })) } catch { return json({ error: 'ai failed' }, 502) }
+  }
   const rate = /^\/v1\/rate\/([A-Za-z0-9_-]{1,24})$/.exec(path)
   if (rate && request.method === 'PUT') {
     const body = await readBody(512)
