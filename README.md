@@ -399,9 +399,20 @@ Màn Khám phá có ô "✨ Hỏi AI tìm nơi khác" (chỉ hiện khi Worker �
 (key chỉ nằm ở Worker, không lộ ra trình duyệt) lấy ≤4 tên nơi → mỗi nơi được kiểm chứng bằng OpenStreetMap (Nominatim) trong khung
 Hà Nội; nơi không tìm thấy / tên không khớp / ngoài Hà Nội bị loại. Toạ độ và địa chỉ luôn lấy từ OSM, không lấy từ AI. Nơi ngoài
 web không có giờ mở cửa/giá/ảnh nên app ghi rõ. Giới hạn 10 lượt/giờ/người. Không đụng `src/utils/api.js`.
-Bật: `cd sync-server && npx wrangler secret put GEMINI_KEY` (tuỳ chọn `GEMINI_MODEL`, mặc định gemini-2.5-flash), rồi `npm run deploy:api`.
+Bật: `cd sync-server && npx wrangler secret put GEMINI_KEY` (tuỳ chọn `GEMINI_MODEL`, có thể liệt kê nhiều model cách nhau dấu phẩy để dự phòng, mặc định gemini-3.5-flash-lite), rồi `npm run deploy:api`.
 Code: `sync-server/aisearch.ts`, `src/components/AiSearch.tsx`.
 
 **v44.2:** nếu Worker có secret `GOOGLE_MAPS_KEY` (Google Maps Platform → Places API (New)), mỗi gợi ý của AI được kiểm chứng và lấy toạ độ ngay trên Google Maps
 (loại nơi "đóng cửa vĩnh viễn", tên không khớp, hoặc không có trên Google Maps); nút mở đúng trang Google Maps của nơi đó. Không có key này thì
 tự quay về OpenStreetMap. Chỉ lấy các trường rẻ (tên, địa chỉ, toạ độ, trạng thái, link) để tránh tốn phí. Cần bật thanh toán trên Google Cloud.
+
+## v45 — Thêm nơi AI tìm được vào lộ trình
+
+Sau khi "Hỏi AI tìm nơi khác" ra kết quả, mỗi thẻ có nút "＋ Thêm vào lộ trình". App hỏi lại ("Thêm … vào lộ trình của bạn?") và cho chọn thời gian ghé
+(30–120 phút), nói rõ nơi này chưa rõ giờ mở cửa/giá. Nơi đã thêm (tối đa 3, tính chung với nơi ghim từ dữ liệu của web) nằm trong `answers.extras`,
+được xếp như địa điểm ghim; nút "Tạo lộ trình có các nơi này" tạo lộ trình ngay, hoặc đi qua bảng hỏi như thường. Thẻ điểm dừng ghi "Nơi do AI gợi ý — chưa rõ giờ
+mở cửa và giá" kèm link Google Maps. Không bịa giờ/giá: không có giờ thì xếp tự do, giá hiển thị chưa rõ. Code: `src/utils/extraPlaces.ts`, `AiSearch.tsx`.
+Chỉ frontend (`cap-nhat.bat` mục 1).
+
+**v45.1 — Màn kết quả dễ thao tác hơn:** thời tiết (tính năng phụ) mặc định thu gọn thành 1 dải (nhiệt độ, mưa/UV, nên mặc) — bấm "Chi tiết thời tiết" mới mở bảng đầy đủ;
+thanh tab (Lộ trình / Bản đồ / Di chuyển / Đánh giá) chữ lớn hơn, tab đang chọn có nền; nhóm "Chỉnh nhanh" có nhãn, nút dạng viên thuốc, tâm trạng đang chọn tô màu.

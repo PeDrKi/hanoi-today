@@ -196,3 +196,10 @@ div[style*="transform-origin"]{animation:grow .8s ease both}
   .stop-body>.stop-media{grid-column:1;grid-row:1 / span 30;margin-bottom:0!important}
   .stop-body>.stop-media>div{height:100%!important;min-height:180px}
 }
+
+/* result tabs: the current tab reads as a filled pill, the rest are clearly clickable */
+.tab-bar button[data-on="true"]{background:var(--rust-soft,rgba(200,90,30,.16))!important;border-radius:var(--r-md) var(--r-md) 0 0}
+.tab-bar button[data-on="false"]:hover{background:rgba(127,127,127,.12)!important}
+/* weather summary strip */
+.wx-strip{width:100%;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;text-align:left;cursor:pointer;font-family:inherit;color:#fff;border:none;border-radius:16px;padding:.7rem 1rem;box-shadow:0 4px 14px rgba(40,50,70,.16);transition:transform .2s var(--ease-out,ease),box-shadow .2s}
+.wx-strip:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(40,50,70,.22)}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLang } from '../i18n'
 import { C } from '../styles/tokens'
+import { makeExtra, extraId, EXTRA_DURATIONS, type ExtraPlace } from '../utils/extraPlaces'
 import { aiEnabled, aiSearchPlaces, type AiPlace } from '../utils/backend'
 
 const L10N = {
@@ -10,6 +11,8 @@ const L10N = {
     none: 'AI chưa tìm được nơi nào kiểm chứng được. Thử mô tả cụ thể hơn (khu vực, loại hình).',
     limit: 'Bạn đã tìm nhiều lần trong giờ qua. Hãy thử lại sau.', error: 'Không tìm được lúc này. Thử lại sau nhé.',
     note: 'Gợi ý của AI — chưa nằm trong dữ liệu của web nên chưa có giờ mở cửa, giá, ảnh. Hãy kiểm tra lại trước khi đi.', noteG: 'Vị trí lấy từ Google Maps.', noteO: 'Vị trí lấy từ OpenStreetMap.',
+    add: '＋ Thêm vào lộ trình', ask: (n: string) => `Thêm "${n}" vào lộ trình của bạn?`, stay: 'Ghé khoảng', min: 'phút', yes: 'Thêm vào', no: 'Không',
+    added: 'Đã thêm vào lộ trình', remove: 'Bỏ', full: 'Đã đủ 3 nơi', plan: 'Tạo lộ trình có các nơi này', unknown: 'Chưa rõ giờ mở cửa và giá của nơi này nên app sẽ xếp thử vào lịch của bạn; hãy kiểm tra trước khi đi.',
     gmap: 'Mở Google Maps ↗', osm: 'OpenStreetMap ↗', found: (n: number, a: number) => `Kiểm chứng được ${n}/${a} gợi ý`,
   },
   EN: {
@@ -18,17 +21,21 @@ const L10N = {
     none: 'AI could not find any place that could be verified. Try being more specific (area, type).',
     limit: 'You searched a lot in the last hour. Please try again later.', error: 'Could not search right now. Try again later.',
     note: 'AI suggestion — not in the site\'s data, so no opening hours, price or photos. Double-check before you go.', noteG: 'Location from Google Maps.', noteO: 'Location from OpenStreetMap.',
+    add: '＋ Add to my plan', ask: (n: string) => `Add "${n}" to your plan?`, stay: 'Stay about', min: 'min', yes: 'Add', no: 'No',
+    added: 'Added to plan', remove: 'Remove', full: 'Plan is full (3)', plan: 'Plan with these places', unknown: 'Opening hours and price are unknown, so the app will just fit it into your day; check before you go.',
     gmap: 'Open in Google Maps ↗', osm: 'OpenStreetMap ↗', found: (n: number, a: number) => `Verified ${n} of ${a} suggestions`,
   },
 }
 
-export default function AiSearch() {
+export default function AiSearch({ extras = [], maxExtras = 3, onAdd, onRemove, onPlan }: { extras?: ExtraPlace[]; maxExtras?: number; onAdd?: (e: ExtraPlace) => void; onRemove?: (id: string) => void; onPlan?: () => void }) {
   const { lang } = useLang()
   const x = L10N[lang as 'VI' | 'EN'] || L10N.VI
   const [on, setOn] = useState(false)
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [asking, setAsking] = useState<string | null>(null)
+  const [stay, setStay] = useState(60)
   const [res, setRes] = useState<{ places: AiPlace[]; asked: number } | null>(null)
   useEffect(() => { aiEnabled().then(setOn) }, [])
   if (!on) return null
@@ -65,6 +72,26 @@ export default function AiSearch() {
                 <div style={{ fontSize: '0.72rem', color: C.muted, margin: '0.1rem 0 0.4rem' }}>{[p.category, p.area].filter(Boolean).join(' · ')}</div>
                 {p.why && <p style={{ fontSize: '0.8rem', color: C.ink, margin: '0 0 0.4rem', lineHeight: 1.55 }}>{p.why}</p>}
                 {p.address && <p style={{ fontSize: '0.7rem', color: C.muted, margin: '0 0 0.5rem', lineHeight: 1.5 }}>📍 {p.address}</p>}
+                {onAdd && (() => {
+                  const id = extraId(p.lat, p.lng), inPlan = extras.some(e => e.id === id), full = !inPlan && extras.length >= maxExtras
+                  if (inPlan) return <div style={{ margin: '0 0 0.5rem', fontSize: '0.76rem', color: '#3D5C35' }}>✓ {x.added} · <button type="button" onClick={() => onRemove?.(id)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: C.muted, textDecoration: 'underline', fontSize: '0.74rem', fontFamily: "'Be Vietnam Pro',sans-serif" }}>{x.remove}</button></div>
+                  if (asking === id) return (
+                    <div role="group" aria-label={x.ask(p.name)} style={{ margin: '0 0 0.6rem', padding: '0.6rem 0.7rem', background: 'rgba(200,70,20,0.06)', border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, color: C.ink, marginBottom: 4 }}>{x.ask(p.name)}</div>
+                      <p style={{ fontSize: '0.7rem', color: C.muted, margin: '0 0 0.5rem', lineHeight: 1.55 }}>{x.unknown}</p>
+                      <label style={{ fontSize: '0.74rem', color: C.ink, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>{x.stay}
+                        <select value={stay} onChange={e => setStay(Number(e.target.value))} style={{ padding: '0.25rem 0.4rem', borderRadius: 8, border: `1px solid ${C.border}`, fontFamily: "'Be Vietnam Pro',sans-serif" }}>
+                          {EXTRA_DURATIONS.map(d => <option key={d} value={d}>{d} {x.min}</option>)}
+                        </select>
+                      </label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" onClick={() => { onAdd(makeExtra(p, stay)); setAsking(null) }} style={{ padding: '0.4rem 0.9rem', borderRadius: 999, border: 'none', background: C.rust, color: 'white', cursor: 'pointer', fontSize: '0.76rem', fontFamily: "'Be Vietnam Pro',sans-serif" }}>{x.yes}</button>
+                        <button type="button" onClick={() => setAsking(null)} style={{ padding: '0.4rem 0.9rem', borderRadius: 999, border: `1px solid ${C.border}`, background: 'none', color: C.ink, cursor: 'pointer', fontSize: '0.76rem', fontFamily: "'Be Vietnam Pro',sans-serif" }}>{x.no}</button>
+                      </div>
+                    </div>
+                  )
+                  return <button type="button" disabled={full} onClick={() => { setStay(60); setAsking(id) }} style={{ margin: '0 0 0.5rem', padding: '0.4rem 0.9rem', borderRadius: 999, border: `1px solid ${C.rust}`, background: 'none', color: C.rust, cursor: full ? 'not-allowed' : 'pointer', opacity: full ? 0.5 : 1, fontSize: '0.76rem', fontFamily: "'Be Vietnam Pro',sans-serif" }}>{full ? x.full : x.add}</button>
+                })()}
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                   <a style={link} target="_blank" rel="noopener noreferrer" href={p.maps || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name + ', Hà Nội')}`}>{x.gmap}</a>
                   {p.osm && <a style={link} target="_blank" rel="noopener noreferrer" href={p.osm}>{x.osm}</a>}
@@ -72,6 +99,7 @@ export default function AiSearch() {
               </article>
             ))}
           </div>
+          {extras.length > 0 && onPlan && <div style={{ marginTop: 12 }}><button type="button" onClick={onPlan} style={{ padding: '0.6rem 1.3rem', borderRadius: 999, border: 'none', background: C.ink, color: C.cream, cursor: 'pointer', fontFamily: "'Be Vietnam Pro',sans-serif" }}>{x.plan} ({extras.length}) →</button></div>}
         </>}
       </div>
     </section>

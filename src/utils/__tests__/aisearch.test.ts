@@ -55,6 +55,31 @@ describe('AI place search', () => {
   })
 })
 
+describe('Gemini retry / fallback', () => {
+  const mk = (plan: Record<string, number[]>, calls: string[]) => (async (url: string | URL | Request) => {
+    const u = String(url)
+    if (!u.includes('generativelanguage')) return new Response('[]')
+    const m = /models\/([^:]+):/.exec(u)![1]; calls.push(m)
+    const st = (plan[m] || [200]).shift() ?? 200
+    return st === 200 ? new Response(JSON.stringify(gemini([]))) : new Response(JSON.stringify({ error: { message: 'busy' } }), { status: st })
+  }) as unknown as typeof fetch
+  it('retries a busy model, then succeeds', async () => {
+    const calls: string[] = []
+    const r = await aiSearch('cà phê', { key: 'k', model: 'a', fetchFn: mk({ a: [503, 200] }, calls), sleep: noWait })
+    expect(calls).toEqual(['a', 'a']); expect(r.asked).toBe(0)
+  })
+  it('falls back to the next listed model; a missing model is not retried', async () => {
+    const calls: string[] = []
+    await aiSearch('cà phê', { key: 'k', model: 'a, b', fetchFn: mk({ a: [404], b: [200] }, calls), sleep: noWait })
+    expect(calls).toEqual(['a', 'b'])
+  })
+  it('gives up with the last error after retries', async () => {
+    const calls: string[] = []
+    await expect(aiSearch('cà phê', { key: 'k', model: 'a', fetchFn: mk({ a: [503, 503, 503] }, calls), sleep: noWait })).rejects.toThrow(/Gemini 503: busy/)
+    expect(calls).toHaveLength(3)
+  })
+})
+
 describe('AI place search with Google Maps', () => {
   const gm = (places: unknown[], status = 200) => (async (url: string | URL | Request, init?: RequestInit) => {
     const u = String(url)

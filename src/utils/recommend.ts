@@ -1,4 +1,5 @@
 import { normalizeBudget, budgetPerPerson } from './budget'
+import { withExtras, extrasOf } from './extraPlaces'
 import { getPlaces }              from '../data/placeStore'
 import { mergeSeasonsIntoPlaces } from '../data/seasons'
 import { mergeLocalMode }         from '../data/localMode'
@@ -338,6 +339,7 @@ export const JITTER = 22
 export const COMPACT_KM = 3
 
 function prepare({ answers, wx, start, places, exclude = [] }: { answers: Answers; wx: Weather | null; start: Start; places: Place[]; exclude?: string[] }): PlanCtx {
+  places = withExtras(places, answers)
   const { mood, time: timeId, group, mode = 'tourist', focus = 'all' } = answers
   const budgetVal = budgetPerPerson(answers.budget, answers.people)
   const wxCode = wx?.code ?? 0
@@ -384,7 +386,7 @@ function prepare({ answers, wx, start, places, exclude = [] }: { answers: Answer
   // places the visitor picked: kept even when a filter above would have dropped them (budget, weather, mood …) — they get a note instead.
   // Hiding or swapping a pinned place away is an explicit "no", so those are honoured.
   const dropped = new Set([...exclude, ...(answers.hidden || [])])
-  const must = [...new Set(answers.must || [])].filter(id => !dropped.has(id)).slice(0, MAX_MUST)
+  const must = [...new Set([...extrasOf(answers).map(e => e.id), ...(answers.must || [])])].filter(id => !dropped.has(id)).slice(0, MAX_MUST)
     .map(id => placesWithMode.find(p => p.id === id)).filter(isDef).filter(p => p.type !== 'lodging')
   const lvl = wxLevel({ code: wxCode, precip: wx?.precip, visibility: wx?.visibility })
   const mustNotes = new Map<string, MustNote[]>()

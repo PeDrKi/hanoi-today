@@ -1,3 +1,4 @@
+import type { ExtraPlace } from './utils/extraPlaces'
 export type Mood = 'calm' | 'adventure' | 'nostalgia' | 'energy'
 export type Group = 'solo' | 'couple' | 'friends' | 'family'
 export type GroupAnswer = Group | 'any'
@@ -59,6 +60,8 @@ export interface Answers {
   favs?: string[]
   /** Địa điểm người dùng muốn ghé (tối đa 3, mã trong dữ liệu): luôn được xếp vào lộ trình nếu còn mở cửa, phần còn lại do app gợi ý quanh đó. */
   must?: string[]
+  /** Nơi do AI gợi ý (ngoài dữ liệu của web) mà người dùng đã chọn thêm vào lộ trình — luôn được xếp như địa điểm đã ghim. */
+  extras?: ExtraPlace[]
 }
 
 export type Warn = 'closed' | 'hours' | 'late' | null

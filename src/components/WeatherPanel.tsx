@@ -33,6 +33,8 @@ export default function WeatherPanel({ wx, dateISO, limitedFitness, compact }: {
   const [days, setDays] = useState<DayForecast[]>([]); const [stale, setStale] = useState(false); const [loaded, setLoaded] = useState(false)
   const [sel, setSel] = useState<string | null>(null)
   const [more, setMore] = useState(false)
+  // the weather is a side feature: collapsed to one line by default so the plan and its controls come first
+  const [open, setOpen] = useState(false)
   const root = useRef<HTMLElement>(null)
   useEffect(() => { let on = true; fetchForecast().then(r => { if (on) { setDays(r.days); setStale(r.stale); setLoaded(true) } }); return () => { on = false } }, [])
   const planned = days.find(d => d.date === dateISO) || days[0]
@@ -68,8 +70,24 @@ export default function WeatherPanel({ wx, dateISO, limitedFitness, compact }: {
   const items = adv.items.map(t => { const m = t.match(/^(\p{Extended_Pictographic}️?)\s*(.*)$/u); return { ic: m ? m[1] : '•', text: m ? m[2] : t } })
   const shown = more ? items : items.slice(0, 4)
 
+  const nowLabel = isPlannedToday && wx?.label ? wx.label : ((WX_MAP as Record<number, { label: string }>)[day.code]?.label || '')
+  const nowIcon = isPlannedToday && wx?.icon ? wx.icon : icon(day.code)
+  const tempTxt = isPlannedToday && nowTemp !== null ? `${nowTemp}°C` : `${day.tMin}°–${day.tMax}°`
+  const strip = (
+    <button type="button" className="wx-strip" aria-expanded={open} aria-controls="wx-detail" onClick={() => setOpen(o => !o)} style={{ background:GRAD[mood] }}>
+      <span style={{ ...EMOJI, fontSize:'1.6rem', lineHeight:1 }} aria-hidden="true">{nowIcon}</span>
+      <span style={{ fontWeight:700, fontSize:'1.05rem' }}>{tempTxt}</span>
+      <span style={{ fontSize:'0.8rem', opacity:0.95 }}>{nowLabel}</span>
+      <span style={{ fontSize:'0.74rem', opacity:0.9 }}>☔ {day.rainProb}% · UV {Math.round(day.uv)}</span>
+      <span style={{ fontSize:'0.74rem', opacity:0.95, flex:'1 1 180px', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>🧥 {adv.outfit}</span>
+      <span style={{ fontSize:'0.74rem', fontWeight:600, background:'rgba(255,255,255,0.22)', padding:'0.22rem 0.7rem', borderRadius:999, whiteSpace:'nowrap' }}>{open ? (en ? 'Hide ▴' : 'Thu gọn ▴') : (en ? 'Weather & packing ▾' : 'Chi tiết thời tiết ▾')}</span>
+    </button>
+  )
+
   return (
-    <section ref={root} aria-label={en ? 'Weather and packing' : 'Thời tiết và đồ mang theo'} style={{ marginBottom:'1.5rem' }}>
+    <section ref={root} aria-label={en ? 'Weather and packing' : 'Thời tiết và đồ mang theo'} style={{ marginBottom:'1.1rem' }}>
+      {strip}
+      {open && <div id="wx-detail" className="fold-in" style={{ marginTop:'0.75rem' }}>
       {/* hero */}
       <div className="wp-hero" style={{ background:GRAD[mood], color:'#fff', borderRadius:18, padding:'1.1rem 1.25rem', display:'flex', alignItems:'center', gap:'1rem', flexWrap:'wrap', boxShadow:'0 8px 24px rgba(40,50,70,0.18)', transition:'background 0.4s' }}>
         <div style={{ ...EMOJI, fontSize:'3.2rem', lineHeight:1, filter:'drop-shadow(0 4px 8px rgba(0,0,0,0.2))' }} aria-hidden="true">{isPlannedToday && wx?.icon ? wx.icon : icon(day.code)}</div>
@@ -117,6 +135,7 @@ export default function WeatherPanel({ wx, dateISO, limitedFitness, compact }: {
         {items.length > 4 && <button type="button" onClick={() => setMore(m => !m)} style={{ marginTop:10, background:'none', border:'none', color:'#B5541C', cursor:'pointer', fontSize:'0.8rem', fontFamily:'inherit', padding:0, fontWeight:600 }}>{more ? (en ? 'Show less ▲' : 'Thu gọn ▲') : (en ? `Show ${items.length - 4} more ▼` : `Xem thêm ${items.length - 4} gợi ý ▼`)}</button>}
         {stale && <div style={{ fontSize:'0.68rem', color:'#6b665a', marginTop:8 }}>{en ? 'Saved forecast (offline) — may be out of date.' : '📴 Dự báo đã lưu trên máy (offline) — có thể đã cũ.'}</div>}
       </div>
+      </div>}
     </section>
   )
 }

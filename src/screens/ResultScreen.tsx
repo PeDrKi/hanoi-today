@@ -1,4 +1,5 @@
 import PlaceImage from '../components/PlaceImage'
+import { isExtraId } from '../utils/extraPlaces'
 import PlaceRating from '../components/PlaceRating'
 import { formatVnd, clampPeople } from '../utils/budget'
 import { useState, useEffect, useCallback, useRef, useLayoutEffect, lazy, Suspense } from 'react'
@@ -44,6 +45,7 @@ function saveDone(day: string | undefined, ids: string[]) { try { localStorage.s
 // ── Stop Card ─────────────────────────────────────────
 interface StopCardProps { noteQuality?: boolean; noteAllergy?: boolean; allergies?: string[]; heatTemp?: number | null; startHour?: number; stop: Stop; index: number; total?: number; mode: Mode; r: R; onSwap?: (id: string) => void; onHide?: (id: string) => void; onMove?: (id: string, dir: number) => void; state?: StopState; done?: boolean; onDone?: (id: string) => void; fav?: boolean; onFav?: (id: string) => void }
 function StopCard({ noteQuality = true, noteAllergy = true, allergies, heatTemp, startHour, stop, index, total, mode, r, onSwap, onHide, onMove, state, done, onDone, fav, onFav }: StopCardProps) {
+  const { lang } = useLang()
   const [menuOpen, setMenuOpen] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
@@ -77,6 +79,12 @@ function StopCard({ noteQuality = true, noteAllergy = true, allergies, heatTemp,
             <span style={{ fontSize:'0.67rem', color:'#3D5C35' }}>{r.localTime} {stop.displayTime}</span>
           )}
         </div>
+        {isExtraId(stop.id) && (
+          <div role="note" style={{ fontSize:'0.72rem', color:'#9A5B00', lineHeight:1.6, marginBottom:6 }}>
+            ✨ {lang === 'EN' ? 'AI-suggested place — opening hours and price are unknown. Check before you go: ' : 'Nơi do AI gợi ý — chưa rõ giờ mở cửa và giá. Hãy kiểm tra trước khi đi: '}
+            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.name + ', Hà Nội')}`} target="_blank" rel="noopener noreferrer" style={{ color:C.rust }}>Google Maps ↗</a>
+          </div>
+        )}
         {stop.must && <div style={{ display:'flex', flexWrap:'wrap', gap:6, alignItems:'center', marginBottom:6 }}>
           <span style={{ fontSize:'0.66rem', background:C.rust, color:'white', padding:'0.15rem 0.55rem', fontWeight:600 }}>{r.mustBadge}</span>
           {(stop.mustNotes || []).map(n => <span key={n} role="note" style={{ fontSize:'0.7rem', color:'#9A5B00' }}>{r.mustNote[n]}</span>)}
@@ -471,7 +479,7 @@ export default function ResultScreen({ answers, wx, onRestart, onAdjust, shared 
             {/* TAB BAR */}
             <div className="tab-bar" style={{ display:'flex', borderBottom:`1px solid ${C.border}`, marginBottom:'1.25rem' }}>
               {tabs.map(tb => (
-                <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding:'0.6rem 0.95rem', fontSize:'0.79rem', fontFamily:"'Be Vietnam Pro',sans-serif", background:'none', border:'none', cursor:'pointer', marginBottom:-1, whiteSpace:'nowrap', borderBottom:`2px solid ${tab===tb.id?C.rust:'transparent'}`, color:tab===tb.id?C.rust:C.muted, fontWeight:tab===tb.id?600:400, transition:'all 0.18s' }}>
+                <button key={tb.id} data-on={tab===tb.id} onClick={() => setTab(tb.id)} style={{ padding:'0.75rem 1.05rem', fontFamily:"'Be Vietnam Pro',sans-serif", background:'none', border:'none', cursor:'pointer', marginBottom:-1, whiteSpace:'nowrap', borderBottom:`3px solid ${tab===tb.id?C.rust:'transparent'}`, color:tab===tb.id?C.rust:C.ink, fontWeight:tab===tb.id?700:500, fontSize:'0.88rem', transition:'all 0.18s' }}>
                   {tb.label}
                   {tb.id==='stay'   && stayStatus==='loading' && <span style={{ marginLeft:4, opacity:.5, fontSize:'0.6rem' }}>●</span>}
                   {tb.id==='stay'   && stayStatus==='done'    && <span style={{ marginLeft:4, color:C.sage, fontSize:'0.6rem' }}>✓</span>}
@@ -489,10 +497,11 @@ export default function ResultScreen({ answers, wx, onRestart, onAdjust, shared 
             {onAdjust && status === 'done' && (
               <div style={{ marginBottom:'1.1rem' }}>
                 {answers.auto && answers.why && <div style={{ fontSize:'0.74rem', color:C.muted, marginBottom:6 }}>{r.autoBasis} {answers.why.map(k => (r.autoWhy as Record<string, string>)[k]).filter(Boolean).join(', ')}</div>}
-                <div role="group" aria-label={r.tweakLabel} style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
-                  {(Object.entries(t.moods) as [Answers['mood'], { label: string; desc: string }][]).map(([id, m]) => { const on = answers.mood === id; return <button key={id} type="button" aria-pressed={on} onClick={() => onAdjust({ mood:id })} style={{ fontSize:'0.74rem', padding:'0.3rem 0.7rem', cursor:'pointer', fontFamily:"'Be Vietnam Pro',sans-serif", background:on?C.rustLight:'none', color:on?C.rust:C.ink, border:`1px solid ${on?C.rust:C.border}` }}>{m.label.split('&')[0].trim()}</button> })}
-                  {(['all','food','cafe'] as const).map(id => { const on = (answers.focus || 'all') === id; const lb = id === 'all' ? t.onboard.focusAll : id === 'food' ? t.onboard.focusFood : t.onboard.focusCafe; return <button key={id} type="button" aria-pressed={on} onClick={() => onAdjust({ focus:id })} style={{ fontSize:'0.74rem', padding:'0.3rem 0.7rem', cursor:'pointer', fontFamily:"'Be Vietnam Pro',sans-serif", background:on?C.ink:'none', color:on?C.cream:C.ink, border:`1px solid ${on?C.ink:C.border}` }}>{lb}</button> })}
-                  {(['2h','half','full'] as const).map(id => { const on = answers.time === id; return <button key={id} type="button" aria-pressed={on} onClick={() => onAdjust({ time:id })} style={{ fontSize:'0.74rem', padding:'0.3rem 0.7rem', cursor:'pointer', fontFamily:"'Be Vietnam Pro',sans-serif", background:on?C.ink:'none', color:on?C.cream:C.ink, border:`1px solid ${on?C.ink:C.border}` }}>{t.times[id].label.split('—')[0].trim()}</button> })}
+                <div style={{ fontSize:'0.7rem', letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:700, color:C.muted, marginBottom:6 }}>{r.tweakLabel}</div>
+                <div role="group" aria-label={r.tweakLabel} style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+                  {(Object.entries(t.moods) as [Answers['mood'], { label: string; desc: string }][]).map(([id, m]) => { const on = answers.mood === id; return <button key={id} type="button" aria-pressed={on} onClick={() => onAdjust({ mood:id })} style={{ fontSize:'0.82rem', padding:'0.42rem 0.95rem', borderRadius:999, fontWeight:500, cursor:'pointer', fontFamily:"'Be Vietnam Pro',sans-serif", background:on?C.rust:'none', color:on?'#fff':C.ink, border:`1px solid ${on?C.rust:C.border}` }}>{m.label.split('&')[0].trim()}</button> })}
+                  {(['all','food','cafe'] as const).map(id => { const on = (answers.focus || 'all') === id; const lb = id === 'all' ? t.onboard.focusAll : id === 'food' ? t.onboard.focusFood : t.onboard.focusCafe; return <button key={id} type="button" aria-pressed={on} onClick={() => onAdjust({ focus:id })} style={{ fontSize:'0.82rem', padding:'0.42rem 0.95rem', borderRadius:999, fontWeight:500, cursor:'pointer', fontFamily:"'Be Vietnam Pro',sans-serif", background:on?C.ink:'none', color:on?C.cream:C.ink, border:`1px solid ${on?C.ink:C.border}` }}>{lb}</button> })}
+                  {(['2h','half','full'] as const).map(id => { const on = answers.time === id; return <button key={id} type="button" aria-pressed={on} onClick={() => onAdjust({ time:id })} style={{ fontSize:'0.82rem', padding:'0.42rem 0.95rem', borderRadius:999, fontWeight:500, cursor:'pointer', fontFamily:"'Be Vietnam Pro',sans-serif", background:on?C.ink:'none', color:on?C.cream:C.ink, border:`1px solid ${on?C.ink:C.border}` }}>{t.times[id].label.split('—')[0].trim()}</button> })}
                 </div>
               </div>
             )}

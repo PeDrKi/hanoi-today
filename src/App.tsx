@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import WelcomeScreen    from './screens/WelcomeScreen'
 import { decodePlan }   from './utils/share'
 import { inferAnswers } from './utils/infer'
+import type { ExtraPlace } from './utils/extraPlaces'
 import { validOrigin, MAX_MUST } from './utils/recommend'
 const MapPreviewScreen = lazy(() => import('./screens/MapPreviewScreen'))
 const ExploreScreen = lazy(() => import('./screens/ExploreScreen'))
@@ -107,12 +108,15 @@ export default function App() {
   }, [])
 
   const [mustIds, setMustIds] = useState<string[]>([])
+  const [extras, setExtras] = useState<ExtraPlace[]>([])
+  const addExtra = (e: ExtraPlace) => setExtras(x => x.some(y => y.id === e.id) || x.length >= MAX_MUST ? x : [...x, e])
+  const removeExtra = (id: string) => setExtras(x => x.filter(y => y.id !== id))
   const toggleMust = (id: string) => setMustIds(m => m.includes(id) ? m.filter(x => x !== id) : m.length >= MAX_MUST ? m : [...m, id])
   const goAdmin   = () => setPage('admin')
   const goOnboard = () => setPage('onboard')
   const goResult  = (ans: Answers) => { saveLast(ans); setShared(null); setAnswers(ans); setPage('result') }
   const goQuick   = () => {
-    setShared(null); setAnswers({ ...inferAnswers({ now: new Date(), wx, last: loadLast() }), ...(mustIds.length ? { must: mustIds } : { must: undefined }) }); setPage('result')
+    setShared(null); setAnswers({ ...inferAnswers({ now: new Date(), wx, last: loadLast() }), ...(mustIds.length ? { must: mustIds } : { must: undefined }), ...(extras.length ? { extras } : {}) }); setPage('result')
     // refine with the position only if the browser already has permission — never prompts by itself
     try {
       navigator.permissions?.query({ name:'geolocation' }).then(st => {
@@ -144,9 +148,9 @@ export default function App() {
 
       <div key={page} className="page-in">
       {page === 'welcome'     && <WelcomeScreen    onStart={goOnboard}   onAdmin={goAdmin} onMap={goMap} onExplore={goExplore} onQuick={goQuick} onMine={goMine} onSaved={loadSavedPlan() ? goSaved : undefined}/>}
-      {page === 'explore'     && <Suspense fallback={<div style={{ padding:'3rem', textAlign:'center' }}>…</div>}><ExploreScreen wx={wx} onHome={goHome} onPlan={goQuick} mustIds={mustIds} onToggleMust={toggleMust}/></Suspense>}
+      {page === 'explore'     && <Suspense fallback={<div style={{ padding:'3rem', textAlign:'center' }}>…</div>}><ExploreScreen wx={wx} onHome={goHome} onPlan={goQuick} mustIds={mustIds} onToggleMust={toggleMust} extras={extras} onAddExtra={addExtra} onRemoveExtra={removeExtra}/></Suspense>}
       {page === 'map-preview' && <Suspense fallback={<div style={{ padding:'3rem', textAlign:'center' }}>…</div>}><MapPreviewScreen onStart={goOnboard} onHome={goHome} mustIds={mustIds} onToggleMust={toggleMust}/></Suspense>}
-      {page === 'onboard'     && <OnboardScreen    onDone={goResult} initial={{ ...loadLast(), ...(mustIds.length ? { must: mustIds } : {}) }}/>}
+      {page === 'onboard'     && <OnboardScreen    onDone={goResult} initial={{ ...loadLast(), ...(mustIds.length ? { must: mustIds } : {}), ...(extras.length ? { extras } : {}) }}/>}
       {page === 'result'      && answers && <ResultScreen answers={answers} wx={wx} onRestart={goRestart} onAdjust={adjust} shared={shared ? { ids:shared.ids, startHour:shared.startHour, dateISO:shared.dateISO } : null}/>}
       {page === 'mine'        && <MineScreen onHome={goHome}/>}
       {page === 'admin'       && <Suspense fallback={null}><AdminScreen onExit={goHome}/></Suspense>}

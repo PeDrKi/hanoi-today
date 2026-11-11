@@ -44,18 +44,27 @@ export async function aiSearch(q: string, o: AiSearchOpts): Promise<{ places: Ai
   const f = o.fetchFn ?? fetch, sleep = o.sleep ?? (ms => new Promise(r => setTimeout(r, ms)))
   const query = clamp(q, MAX_QUERY)
   if (query.length < 3) return { places: [], asked: 0 }
-  const model = o.model || 'gemini-2.5-flash'
-  const res = await f(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': o.key },
-    body: JSON.stringify({ contents: [{ parts: [{ text: PROMPT(query) }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 1024, responseMimeType: 'application/json' } }),
-  })
-  if (!res.ok) {
-    // keep Google's own explanation (never contains our key) so a wrong model/key can be diagnosed from the app
-    let why = ''
-    try { why = clamp(((await res.json()) as { error?: { message?: string } })?.error?.message, 200) } catch { /* ignore */ }
-    throw new Error(`Gemini ${res.status}${why ? ': ' + why : ''}`)
+  // GEMINI_MODEL may list several models, comma separated: they are tried in order. A busy model (503/429) is retried
+  // twice with a short wait, then the next model is tried; a model that is gone (404) moves on straight away.
+  const models = (o.model || 'gemini-3.5-flash-lite').split(',').map(m => m.trim()).filter(Boolean)
+  const reqBody = JSON.stringify({ contents: [{ parts: [{ text: PROMPT(query) }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 1024, responseMimeType: 'application/json' } })
+  let res: Response | null = null, lastErr = ''
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt) await sleep(900 * attempt)
+      const r = await f(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': o.key }, body: reqBody,
+      })
+      if (r.ok) { res = r; break }
+      // keep Google's own explanation (never contains our key) so a wrong model/key can be diagnosed from the app
+      let why = ''
+      try { why = clamp(((await r.json()) as { error?: { message?: string } })?.error?.message, 200) } catch { /* ignore */ }
+      lastErr = `Gemini ${r.status}${why ? ': ' + why : ''}`
+      if (r.status !== 503 && r.status !== 429) break            // not a busy signal: retrying the same model will not help
+    }
+    if (res) break
   }
+  if (!res) throw new Error(lastErr || 'Gemini unavailable')
   const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
   const cands = parseCandidates(data?.candidates?.[0]?.content?.parts?.[0]?.text || '').slice(0, o.max ?? 4)
 

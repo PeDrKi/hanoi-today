@@ -11,6 +11,7 @@ import PlaceImage from '../components/PlaceImage'
 import SafetyNote from '../components/SafetyNote'
 import LangToggle from '../components/LangToggle'
 import { useLang, useT } from '../i18n'
+import type { ExtraPlace } from '../utils/extraPlaces'
 import AiSearch from '../components/AiSearch'
 import { MAX_MUST } from '../utils/recommend'
 import { useRatings, fmtAvg } from '../utils/ratings'
@@ -44,7 +45,7 @@ const catOf = (p: Place): Cat => p.type === 'lodging' ? 'stay' : (p.type === 'fo
 const fmt = (n: number) => n.toLocaleString('vi-VN') + 'đ'
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
 
-export default function ExploreScreen({ wx, onHome, onPlan, mustIds = [], onToggleMust }: { wx: Weather | null; onHome: () => void; onPlan: () => void; mustIds?: string[]; onToggleMust?: (id: string) => void }) {
+export default function ExploreScreen({ wx, onHome, onPlan, mustIds = [], onToggleMust, extras = [], onAddExtra, onRemoveExtra }: { wx: Weather | null; onHome: () => void; onPlan: () => void; mustIds?: string[]; onToggleMust?: (id: string) => void; extras?: ExtraPlace[]; onAddExtra?: (e: ExtraPlace) => void; onRemoveExtra?: (id: string) => void }) {
   const { lang } = useLang()
   const t = useT()
   const x = L10N[lang as 'VI' | 'EN'] || L10N.VI
@@ -116,7 +117,7 @@ export default function ExploreScreen({ wx, onHome, onPlan, mustIds = [], onTogg
           <span role="status" style={{ fontSize:'0.78rem', color:C.muted }}>{x.count(list.length)}</span>
         </div>
 
-        <AiSearch/>
+        <AiSearch extras={extras} maxExtras={Math.max(0, MAX_MUST - mustIds.length)} onAdd={onAddExtra} onRemove={onRemoveExtra} onPlan={onPlan}/>
         <div ref={grid} style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(250px,1fr))', gap:14 }}>
           {list.map(p => (
             <button key={p.id} type="button" className="ex-card" onClick={() => setSel(p)}
